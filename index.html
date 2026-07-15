@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f1f3f0" />
+    <meta name="description" content="山間の貯水池で起きた失踪事件の記録" />
+    <title>北嶺日報 | 水底の記録</title>
+  </head>
+  <body>
+    <header class="masthead">
+      <a class="brand" href="#article-1" aria-label="北嶺日報 トップ">
+        <span class="brand-mark">北嶺</span><span>日報</span>
+      </a>
+      <div class="edition">山間地域版　記録保全アーカイブ</div>
+      <nav aria-label="記事操作">
+        <button class="icon-button" id="records-button" type="button" aria-expanded="false" aria-controls="records-panel" title="記録一覧">
+          <span aria-hidden="true">☷</span><span class="button-label">記録</span>
+        </button>
+        <button class="icon-button" id="reset-button" type="button" title="記録を初期化">
+          <span aria-hidden="true">↺</span><span class="button-label">初期化</span>
+        </button>
+      </nav>
+    </header>
+    <aside id="records-panel" class="records-panel" hidden aria-label="閲覧記録"></aside>
+    <main id="app" tabindex="-1"></main>
+    <dialog id="reset-dialog">
+      <form method="dialog">
+        <p class="dialog-kicker">記録保全アーカイブ</p>
+        <h2>閲覧記録を初期化しますか</h2>
+        <p>既読記事と、操作によって生じた損傷がすべて失われます。</p>
+        <div class="dialog-actions">
+          <button value="cancel">キャンセル</button>
+          <button class="danger" id="confirm-reset" value="confirm">初期化</button>
+        </div>
+      </form>
+    </dialog>
+    <script type="module" src="/src/app.js"></script>
+  </body>
+</html>
