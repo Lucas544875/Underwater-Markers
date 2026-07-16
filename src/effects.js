@@ -1,5 +1,6 @@
-const INK = "23,32,31";
 const RED = "151,20,27";
+const GLUE_TOKEN = /^[ぁ-ん]{1,2}$/;
+const PUNCTUATION = /^[、。・「」『』（）…―ー\s]+$/;
 
 export function createHorrorEffects({ getState, save }) {
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -9,10 +10,7 @@ export function createHorrorEffects({ getState, save }) {
   document.body.prepend(canvas);
 
   const output = canvas.getContext("2d");
-  const ink = document.createElement("canvas");
-  const inkContext = ink.getContext("2d");
-  const scratch = document.createElement("canvas");
-  const scratchContext = scratch.getContext("2d");
+  const segmenter = "Segmenter" in Intl ? new Intl.Segmenter("ja", { granularity: "word" }) : null;
   let width = 0;
   let height = 0;
   let ratio = 1;
@@ -20,23 +18,42 @@ export function createHorrorEffects({ getState, save }) {
   let lastScroll = scrollY;
   let lastScrollTime = performance.now();
   let lastFrame = performance.now();
-  let lastStamp = 0;
   let raf = 0;
   let saveTimer = 0;
   let pointer = null;
   const wakes = [];
+  const stains = [];
+  const particles = [];
+
+  const CELL = 24;
+  const fluidCanvas = document.createElement("canvas");
+  const fluidContext = fluidCanvas.getContext("2d");
+  let cols = 0;
+  let rows = 0;
+  let u = null;
+  let v = null;
+  let u0 = null;
+  let v0 = null;
+  let fluidImage = null;
 
   function resize() {
     ratio = Math.min(devicePixelRatio || 1, 1.25);
     width = innerWidth;
     height = innerHeight;
-    for (const surface of [canvas, ink, scratch]) {
-      surface.width = Math.round(width * ratio);
-      surface.height = Math.round(height * ratio);
-    }
+    canvas.width = Math.round(width * ratio);
+    canvas.height = Math.round(height * ratio);
     canvas.style.width = `${width}px`;
     canvas.style.height = `${height}px`;
-    refresh(depth);
+    cols = Math.ceil(width / CELL) + 2;
+    rows = Math.ceil(height / CELL) + 2;
+    u = new Float32Array(cols * rows);
+    v = new Float32Array(cols * rows);
+    u0 = new Float32Array(cols * rows);
+    v0 = new Float32Array(cols * rows);
+    fluidCanvas.width = cols;
+    fluidCanvas.height = rows;
+    fluidImage = fluidContext.createImageData(cols, rows);
+    measureParticles();
   }
 
   function syncVariables() {
@@ -57,50 +74,136 @@ export function createHorrorEffects({ getState, save }) {
     saveTimer = setTimeout(save, 180);
   }
 
-  function stampVisibleText(alpha = .08) {
-    if (reducedMotion || !width || alpha <= 0) return;
-    inkContext.save();
-    inkContext.scale(ratio, ratio);
-    inkContext.textBaseline = "alphabetic";
-    for (const root of document.querySelectorAll("[data-effect-text]")) {
-      const rootRect = root.getBoundingClientRect();
-      if (rootRect.bottom < 0 || rootRect.top > height) continue;
-      const blocks = root.matches("p,h1") ? [root] : [...root.querySelectorAll("p")];
-      for (const block of blocks) {
-        const rect = block.getBoundingClientRect();
-        if (rect.bottom < 0 || rect.top > height || !rect.width) continue;
-        const style = getComputedStyle(block);
-        const fontSize = parseFloat(style.fontSize);
-        const parsedLineHeight = parseFloat(style.lineHeight);
-        const lineHeight = Number.isFinite(parsedLineHeight) ? parsedLineHeight : fontSize * 1.5;
-        inkContext.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
-        inkContext.fillStyle = `rgba(${INK},${alpha})`;
-        let line = "";
-        let lineIndex = 0;
-        const commit = () => {
-          if (!line) return;
-          const baseline = rect.top + fontSize + (lineHeight - fontSize) * .34 + lineIndex * lineHeight;
-          inkContext.fillText(line, rect.left, baseline);
-          line = "";
-          lineIndex += 1;
-        };
-        for (const character of block.textContent.trim()) {
-          const next = line + character;
-          if (line && inkContext.measureText(next).width > rect.width) commit();
-          line += character;
-        }
-        commit();
-      }
-    }
-    inkContext.restore();
+  function escapeHtml(text) {
+    return text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
   }
 
-  function shiftInk(deltaY) {
-    if (!deltaY || reducedMotion) return;
-    scratchContext.clearRect(0, 0, scratch.width, scratch.height);
-    scratchContext.drawImage(ink, 0, 0);
-    inkContext.clearRect(0, 0, ink.width, ink.height);
-    inkContext.drawImage(scratch, 0, -deltaY * ratio);
+  function splitPhrases(text) {
+    if (!segmenter) return text.match(/.{1,4}/g) || [];
+    const phrases = [];
+    for (const { segment } of segmenter.segment(text)) {
+      const previous = phrases[phrases.length - 1];
+      const glue = previous && (PUNCTUATION.test(segment) ||
+        (GLUE_TOKEN.test(segment) && !PUNCTUATION.test(previous.slice(-1))));
+      if (glue) phrases[phrases.length - 1] += segment;
+      else phrases.push(segment);
+    }
+    return phrases;
+  }
+
+  function segmentArticle() {
+    particles.length = 0;
+    if (reducedMotion) return;
+    for (const root of document.querySelectorAll("[data-effect-text]")) {
+      const blocks = root.matches("p,h1") ? [root] : [...root.querySelectorAll("p")];
+      for (const block of blocks) {
+        if (!block.dataset.segmented) {
+          block.innerHTML = splitPhrases(block.textContent)
+            .map((phrase) => `<span class="wave-seg">${escapeHtml(phrase)}</span>`).join("");
+          block.dataset.segmented = "1";
+        }
+        for (const element of block.querySelectorAll(".wave-seg")) {
+          particles.push({
+            element, docTop: 0, anchorX: 0,
+            x: 0, y: 0, vx: 0, vy: 0,
+            mass: .7 + Math.random() * .6,
+            fade: 1, cap: 1, loose: false,
+          });
+        }
+      }
+    }
+    measureParticles();
+  }
+
+  function measureParticles() {
+    for (const particle of particles) {
+      const rect = particle.element.getBoundingClientRect();
+      particle.docTop = rect.top + scrollY;
+      particle.anchorX = rect.left + rect.width / 2;
+    }
+  }
+
+  function splat(x, y, velX, velY) {
+    if (!u || reducedMotion) return;
+    const cx = x / CELL + .5;
+    const cy = y / CELL + .5;
+    const radius = 2.2;
+    for (let j = Math.max(1, Math.floor(cy - 3)); j <= Math.min(rows - 2, Math.ceil(cy + 3)); j += 1) {
+      for (let i = Math.max(1, Math.floor(cx - 3)); i <= Math.min(cols - 2, Math.ceil(cx + 3)); i += 1) {
+        const fall = Math.exp(-((i - cx) ** 2 + (j - cy) ** 2) / (radius * radius));
+        const index = j * cols + i;
+        u[index] = Math.max(-150, Math.min(150, u[index] + velX * fall));
+        v[index] = Math.max(-150, Math.min(150, v[index] + velY * fall));
+      }
+    }
+  }
+
+  function stepFluid(deltaTime) {
+    if (!u) return;
+    for (let pass = 0; pass < 2; pass += 1) {
+      u0.set(u);
+      v0.set(v);
+      for (let j = 1; j < rows - 1; j += 1) {
+        for (let i = 1; i < cols - 1; i += 1) {
+          const index = j * cols + i;
+          const averageU = (u0[index - 1] + u0[index + 1] + u0[index - cols] + u0[index + cols]) * .25;
+          const averageV = (v0[index - 1] + v0[index + 1] + v0[index - cols] + v0[index + cols]) * .25;
+          u[index] += (averageU - u0[index]) * .5;
+          v[index] += (averageV - v0[index]) * .5;
+        }
+      }
+    }
+    u0.set(u);
+    v0.set(v);
+    const decay = Math.exp(-1.5 * deltaTime);
+    for (let j = 1; j < rows - 1; j += 1) {
+      for (let i = 1; i < cols - 1; i += 1) {
+        const index = j * cols + i;
+        const backX = i - u0[index] * deltaTime / CELL;
+        const backY = j - v0[index] * deltaTime / CELL;
+        u[index] = sampleField(u0, backX, backY) * decay;
+        v[index] = sampleField(v0, backX, backY) * decay;
+      }
+    }
+  }
+
+  function sampleField(field, x, y) {
+    const cx = Math.max(0, Math.min(cols - 1.001, x));
+    const cy = Math.max(0, Math.min(rows - 1.001, y));
+    const i = Math.floor(cx);
+    const j = Math.floor(cy);
+    const fx = cx - i;
+    const fy = cy - j;
+    const index = j * cols + i;
+    return (field[index] * (1 - fx) + field[index + 1] * fx) * (1 - fy)
+      + (field[index + cols] * (1 - fx) + field[index + cols + 1] * fx) * fy;
+  }
+
+  function fluidVelocityAt(x, y) {
+    if (!u) return [0, 0];
+    return [sampleField(u, x / CELL + .5, y / CELL + .5), sampleField(v, x / CELL + .5, y / CELL + .5)];
+  }
+
+  function renderFluid() {
+    if (!fluidImage) return;
+    const visibility = .5 + ((depth - 1) / 6) * .5;
+    const data = fluidImage.data;
+    let active = false;
+    for (let index = 0; index < cols * rows; index += 1) {
+      const speed = Math.hypot(u[index], v[index]);
+      const t = Math.min(1, speed / 130);
+      const eased = t * t * (3 - 2 * t);
+      const alpha = eased * .34 * visibility;
+      if (alpha > .004) active = true;
+      data[index * 4] = 12 + eased * 150;
+      data[index * 4 + 1] = 34 + eased * 148;
+      data[index * 4 + 2] = 32 + eased * 142;
+      data[index * 4 + 3] = alpha * 255;
+    }
+    if (!active) return;
+    fluidContext.putImageData(fluidImage, 0, 0);
+    output.imageSmoothingEnabled = true;
+    output.drawImage(fluidCanvas, -CELL, -CELL, cols * CELL, rows * CELL);
   }
 
   function addWake(y, vx, vy, radius = 180, life = 1) {
@@ -110,49 +213,83 @@ export function createHorrorEffects({ getState, save }) {
 
   function stain(x, y, strength) {
     if (reducedMotion || depth < 2) return;
-    inkContext.save();
-    inkContext.scale(ratio, ratio);
-    inkContext.lineCap = "square";
-    for (let index = 0; index < 4; index += 1) {
-      inkContext.strokeStyle = `rgba(${RED},${strength * (.2 - index * .035)})`;
-      inkContext.lineWidth = 1 + index * 2.5;
-      inkContext.beginPath();
-      inkContext.moveTo(x + index - 1.5, y - 13 - index * 3);
-      inkContext.lineTo(x + index - 1.5, y + 15 + index * 5);
-      inkContext.stroke();
-    }
-    inkContext.restore();
+    stains.push({ x, docY: y + scrollY, strength, age: 0 });
+    if (stains.length > 24) stains.shift();
   }
 
-  function distortInk(deltaTime) {
-    if (reducedMotion || !wakes.length) return;
-    scratchContext.clearRect(0, 0, scratch.width, scratch.height);
-    scratchContext.drawImage(ink, 0, 0);
-    inkContext.clearRect(0, 0, ink.width, ink.height);
-    const strip = Math.max(8, Math.round(11 * ratio));
-    for (let y = 0; y < ink.height; y += strip) {
-      const cssY = y / ratio;
-      let dx = 0;
-      let dy = 0;
-      for (const wake of wakes) {
-        const distance = (cssY - wake.y) / wake.radius;
-        const influence = Math.exp(-distance * distance * 2.4) * Math.max(0, 1 - wake.age / wake.life);
-        dx += wake.vx * influence * deltaTime * ratio;
-        dy += wake.vy * influence * deltaTime * ratio;
-      }
-      inkContext.drawImage(scratch, 0, y, ink.width, strip, dx, y + dy, ink.width, strip);
-    }
+  function sweep(particle, directionX, directionY) {
+    particle.loose = true;
+    particle.cap = Math.max(.28, particle.cap * .6);
+    particle.vx += directionX * (14 + Math.random() * 20);
+    particle.vy += directionY * (30 + Math.random() * 42);
+    addDamage(.0008 + ((depth - 1) / 6) * .0012);
   }
 
-  function fadeInk(deltaTime) {
+  function updateParticles(deltaTime) {
+    if (!particles.length) return;
     const state = getState();
     const normalizedDepth = (depth - 1) / 6;
-    const retention = Math.pow(.988 - normalizedDepth * .003 - state.damage * .002, deltaTime * 60);
-    inkContext.save();
-    inkContext.globalCompositeOperation = "destination-in";
-    inkContext.fillStyle = `rgba(0,0,0,${Math.max(.93, retention)})`;
-    inkContext.fillRect(0, 0, ink.width, ink.height);
-    inkContext.restore();
+    const springK = 40 - normalizedDepth * 31 - state.damage * 4;
+    const damping = Math.exp(-(6 - normalizedDepth * 3.2) * deltaTime);
+    const gain = (.12 + normalizedDepth * .95) * 8;
+    const fluidGain = gain * 1.1 + 1.8;
+    const sweepLimit = depth >= 4 ? 92 - normalizedDepth * 40 : Infinity;
+    const fadeFloor = Math.max(.1, .58 - normalizedDepth * .48);
+    for (const particle of particles) {
+      const viewY = particle.docTop - scrollY;
+      if (viewY < -160 || viewY > height + 160) continue;
+      let forceX = 0;
+      let forceY = 0;
+      for (const wake of wakes) {
+        const distance = (viewY - wake.y) / wake.radius;
+        const influence = Math.exp(-distance * distance * 2.4) * Math.max(0, 1 - wake.age / wake.life);
+        forceX += wake.vx * influence;
+        forceY += wake.vy * influence;
+      }
+      const fluid = fluidVelocityAt(particle.anchorX + particle.x, viewY + particle.y);
+      const restore = particle.loose ? 1.4 : springK;
+      particle.vx += ((forceX * gain + fluid[0] * fluidGain) * particle.mass - restore * particle.x) * deltaTime;
+      particle.vy += ((forceY * gain + fluid[1] * fluidGain) * particle.mass - restore * particle.y) * deltaTime;
+      particle.vx *= damping;
+      particle.vy *= damping;
+      particle.x += particle.vx * deltaTime;
+      particle.y += particle.vy * deltaTime;
+
+      const offset = Math.hypot(particle.x, particle.y);
+      if (!particle.loose && offset * particle.mass > sweepLimit) {
+        sweep(particle, Math.sign(particle.vx || 1), Math.sign(particle.vy || 1));
+      }
+      if (particle.loose) {
+        particle.fade = Math.max(fadeFloor, particle.fade - deltaTime * .5);
+        if (offset < 4 && Math.abs(particle.vx) + Math.abs(particle.vy) < 2.5) particle.loose = false;
+      } else if (particle.fade < particle.cap) {
+        particle.fade = Math.min(particle.cap, particle.fade + deltaTime * .02);
+      }
+
+      if (offset < .35 && particle.fade > .995 && !particle.element.style.transform) continue;
+      const tilt = Math.max(-4, Math.min(4, particle.vx * .045));
+      particle.element.style.transform = offset < .35
+        ? "" : `translate(${particle.x.toFixed(1)}px,${particle.y.toFixed(1)}px) rotate(${tilt.toFixed(2)}deg)`;
+      particle.element.style.opacity = particle.fade > .995 ? "" : particle.fade.toFixed(3);
+    }
+  }
+
+  function drawStains() {
+    if (!stains.length) return;
+    output.lineCap = "square";
+    for (const mark of stains) {
+      const y = mark.docY - scrollY;
+      if (y < -60 || y > height + 60) continue;
+      const settle = Math.max(.35, 1 - mark.age / 40);
+      for (let index = 0; index < 4; index += 1) {
+        output.strokeStyle = `rgba(${RED},${mark.strength * (.2 - index * .035) * settle})`;
+        output.lineWidth = 1 + index * 2.5;
+        output.beginPath();
+        output.moveTo(mark.x + index - 1.5, y - 13 - index * 3);
+        output.lineTo(mark.x + index - 1.5, y + 15 + index * 5);
+        output.stroke();
+      }
+    }
   }
 
   function drawWaterline() {
@@ -201,20 +338,16 @@ export function createHorrorEffects({ getState, save }) {
     lastFrame = now;
     for (const wake of wakes) wake.age += deltaTime;
     while (wakes.length && wakes[0].age >= wakes[0].life) wakes.shift();
-    distortInk(deltaTime);
-    fadeInk(deltaTime);
-
-    const normalizedDepth = (depth - 1) / 6;
-    if (!reducedMotion && now - lastStamp > 420 && normalizedDepth > .12) {
-      stampVisibleText(.008 + normalizedDepth * .013);
-      lastStamp = now;
-    }
+    for (const mark of stains) mark.age += deltaTime;
+    if (!reducedMotion) stepFluid(deltaTime);
+    updateParticles(deltaTime);
 
     output.setTransform(1, 0, 0, 1, 0, 0);
     output.clearRect(0, 0, canvas.width, canvas.height);
     output.save();
     output.scale(ratio, ratio);
-    output.drawImage(ink, 0, 0, ink.width, ink.height, 0, 0, width, height);
+    renderFluid();
+    drawStains();
     drawWaterline();
     clearObstacles();
     output.restore();
@@ -227,9 +360,7 @@ export function createHorrorEffects({ getState, save }) {
     const elapsed = Math.max(16, now - lastScrollTime);
     const speed = Math.min(1, Math.abs(delta) / elapsed / 2);
     if (Math.abs(delta) > 1) {
-      shiftInk(delta);
-      addWake(height * (.42 + Math.random() * .18), (depth % 2 ? 1 : -1) * speed * 65, -Math.sign(delta) * speed * 38, 230, .75);
-      stampVisibleText(.018 + speed * .028 + ((depth - 1) / 6) * .018);
+      addWake(height * (.42 + Math.random() * .18), (depth % 2 ? 1 : -1) * speed * 14, -Math.sign(delta) * speed * 78, 230, .75);
       addDamage((.00012 + speed * .0014) * (1 + (depth - 1) * .18));
     }
     lastScroll = scrollY;
@@ -242,8 +373,8 @@ export function createHorrorEffects({ getState, save }) {
     const dx = event.clientX - pointer.x;
     const dy = event.clientY - pointer.y;
     pointer = { x: event.clientX, y: event.clientY };
-    if (Math.abs(dx) + Math.abs(dy) < 7 || event.buttons) return;
-    addWake(event.clientY, dx * .7, dy * .25, 95, .48);
+    if (!dx && !dy) return;
+    splat(event.clientX, event.clientY, dx * 6, dy * 6);
   }
 
   function onClick(event) {
@@ -251,7 +382,14 @@ export function createHorrorEffects({ getState, save }) {
     const normalizedDepth = (depth - 1) / 6;
     stain(event.clientX, event.clientY, .35 + normalizedDepth * .35);
     addWake(event.clientY, (event.clientX < width / 2 ? -1 : 1) * 24, 8, 110, .65);
-    stampVisibleText(.025 + normalizedDepth * .035);
+    splat(event.clientX, event.clientY, (event.clientX < width / 2 ? -1 : 1) * 60, 45);
+    if (depth >= 5) {
+      for (const particle of particles) {
+        const viewY = particle.docTop - scrollY;
+        if (particle.loose || Math.hypot(particle.anchorX - event.clientX, viewY - event.clientY) > 70) continue;
+        if (Math.random() < .5) sweep(particle, event.clientX < width / 2 ? -1 : 1, 1);
+      }
+    }
     addDamage(.001 + normalizedDepth * .0015);
   }
 
@@ -259,13 +397,18 @@ export function createHorrorEffects({ getState, save }) {
     depth = nextDepth;
     document.body.dataset.depth = String(depth);
     syncVariables();
-    const normalizedDepth = (depth - 1) / 6;
-    requestAnimationFrame(() => stampVisibleText(normalizedDepth <= 0 ? 0 : .006 + normalizedDepth * .025));
+    requestAnimationFrame(segmentArticle);
   }
 
   function reset() {
-    inkContext.clearRect(0, 0, ink.width, ink.height);
     wakes.length = 0;
+    stains.length = 0;
+    if (u) { u.fill(0); v.fill(0); }
+    for (const particle of particles) {
+      Object.assign(particle, { x: 0, y: 0, vx: 0, vy: 0, fade: 1, cap: 1, loose: false });
+      particle.element.style.transform = "";
+      particle.element.style.opacity = "";
+    }
     syncVariables();
   }
 
@@ -273,6 +416,7 @@ export function createHorrorEffects({ getState, save }) {
   addEventListener("scroll", onScroll, { passive: true });
   addEventListener("pointermove", onPointerMove, { passive: true });
   addEventListener("click", onClick, { passive: true });
+  if (document.fonts?.ready) document.fonts.ready.then(measureParticles);
   resize();
   raf = requestAnimationFrame(draw);
 
