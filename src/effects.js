@@ -65,7 +65,8 @@ export function createHorrorEffects({ getState, save }) {
 
   function addDamage(amount) {
     const state = getState();
-    state.damage = Math.min(1, state.damage + amount);
+    // 第4記事（大量閲覧が本物の証拠を消した記事）だけ、閲覧による損耗が速い
+    state.damage = Math.min(1, state.damage + amount * (depth === 4 ? 1.6 : 1));
     state.interactions += 1;
     syncVariables();
     clearTimeout(saveTimer);
@@ -187,6 +188,8 @@ export function createHorrorEffects({ getState, save }) {
   function renderFluid() {
     if (!fluidImage) return;
     const visibility = .5 + ((depth - 1) / 6) * .5;
+    // 深い記事ほど、操作の乱れが校閲の赤（赤入れ）を帯びる
+    const redshift = Math.max(0, Math.min(1, (depth - 3) / 4));
     const data = fluidImage.data;
     let active = false;
     for (let index = 0; index < cols * rows; index += 1) {
@@ -195,9 +198,9 @@ export function createHorrorEffects({ getState, save }) {
       const eased = t * t * (3 - 2 * t);
       const alpha = eased * .34 * visibility;
       if (alpha > .004) active = true;
-      data[index * 4] = 12 + eased * 150;
-      data[index * 4 + 1] = 34 + eased * 148;
-      data[index * 4 + 2] = 32 + eased * 142;
+      data[index * 4] = 12 + eased * (150 + redshift * 68);
+      data[index * 4 + 1] = 34 + eased * (148 - redshift * 96);
+      data[index * 4 + 2] = 32 + eased * (142 - redshift * 88);
       data[index * 4 + 3] = alpha * 255;
     }
     if (!active) return;

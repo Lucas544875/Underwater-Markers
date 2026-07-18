@@ -1,5 +1,5 @@
 import "./styles.css";
-import { articles, evidence, imagePath } from "./content.js";
+import { articles, colophon, evidence, imagePath } from "./content.js";
 import { clearState, loadState, saveState } from "./state.js";
 import { createHorrorEffects } from "./effects.js";
 
@@ -27,39 +27,43 @@ function articleFigure(item) {
   }).join("");
   return `<figure class="article-photo crop-${item.image.crop}">
     <div class="photo-frame">
-      <img src="${imagePath}" alt="渇水で露出した湖底の旧道、バス停跡、赤い目印" />
+      <img src="${imagePath}" alt="${item.image.caption}" />
       ${anomalyCount ? `<span class="photo-anomalies" aria-hidden="true">${anomalies}</span>` : ""}
-      ${item.id >= 3 ? `<span class="photo-verification">撮影日時　${item.id >= 5 ? "照合不能" : "未確認"}</span>` : ""}
+      ${anomalyCount ? `<span class="photo-verification">初出　${item.id >= 6 ? "照合不能" : "未確認"}</span>` : ""}
     </div>
     <figcaption><span>資料写真</span>${item.image.caption}</figcaption>
   </figure>`;
 }
 
 function finalArchive() {
+  const spots = [[6, 4], [52, 2], [30, 34], [4, 64], [55, 60]];
+  const tilts = [-2, 1.6, -1.2, 2.4, -2.2];
   return `<section class="archive" aria-labelledby="archive-title">
-    <div class="archive-heading"><p>復元ファイル 4件</p><h2 id="archive-title">順序情報がありません</h2></div>
+    <div class="archive-heading"><p>現存する記録 5件</p><h2 id="archive-title">時系列は失われています</h2></div>
     <div class="evidence-field">
-      ${evidence.map((item, i) => `<article class="evidence evidence-${item.tone}" data-id="${item.id}" tabindex="0" style="--x:${i % 2 * 41 + 4}%;--y:${Math.floor(i / 2) * 37 + 3}%;--r:${[-2.5,1.8,2.2,-1.2][i]}deg">
-        <div class="evidence-image" style="--focus:${item.pos}"><img src="${imagePath}" alt="復元された湖底の記録断片 ${i + 1}" draggable="false" /></div>
-        <div class="evidence-meta"><time>${item.time}</time><p>${item.label}</p><span>IMG_0${31 + i}.JPG</span></div>
+      ${evidence.map((item, i) => `<article class="evidence evidence-${item.tone}" data-id="${item.id}" tabindex="0" style="--x:${spots[i][0]}%;--y:${spots[i][1]}%;--r:${tilts[i]}deg">
+        <div class="evidence-doc"><span>${item.quote}</span></div>
+        <div class="evidence-meta"><time>${item.time}</time><p>${item.label}</p><span>${item.file}</span></div>
       </article>`).join("")}
     </div>
-    <p class="archive-hint">画像を動かすと、復元前の位置情報は上書きされます。</p>
+    <p class="archive-hint">記録に触れた痕跡は保存されます。</p>
     <div class="last-record" ${isEndingVisible() ? "" : "hidden"}>
-      <p>目印は消されたのではない。<br />見ようとした人間が多すぎたため、目印ではなくなった。</p>
-      <small>捜索関係者は、事件発生直後の現場が維持されていれば、失踪者の移動経路を特定できた可能性があるとしている。</small>
-      <blockquote>この記事には、公開当初、現場を示す画像が一枚掲載されていた。<br />現在、その画像がどれであったかを特定することはできない。</blockquote>
+      <div class="colophon"><span>${colophon.kicker}</span><p>${colophon.body}</p></div>
+      <p class="final-line">${colophon.finalLine}</p>
+      <blockquote>${colophon.question}</blockquote>
+      <a class="return-link" href="#article-1">${colophon.returnLabel}</a>
     </div>
   </section>`;
 }
 
-function isEndingVisible() { return state.evidenceMoves >= 3 || state.evidenceSeen.length === evidence.length; }
+function isEndingVisible() { return state.evidenceMoves >= 4 || state.evidenceSeen.length === evidence.length; }
 
 function renderArticle() {
   const item = articles[current - 1];
   if (!state.visited.includes(current)) state.visited.push(current);
   saveState(state);
   document.title = `${item.title} | 北嶺日報`;
+  document.body.classList.toggle("ending-seen", state.endingSeen);
 
   const paras = item.paragraphs.map((p) => `<p class="body-line">${p}</p>`).join("");
   const next = articles[current];
@@ -68,7 +72,7 @@ function renderArticle() {
       <div class="article-flags"><span>${item.section}</span><span>記事 ${String(current).padStart(2,"0")} / 07</span></div>
       <h1 data-effect-text>${item.title}</h1>
       <p class="lead" data-effect-text>${item.lead}</p>
-      <dl class="byline"><div><dt>公開</dt><dd>${item.date}</dd></div><div><dt>更新</dt><dd>${item.updated}</dd></div><div><dt>取材</dt><dd>${item.author}</dd></div></dl>
+      <dl class="byline"><div><dt>公開</dt><dd>${item.date}</dd></div><div class="byline-update"><dt>更新</dt><dd>${item.updated}</dd></div><div><dt>取材</dt><dd>${item.author}</dd></div></dl>
     </header>
     ${articleFigure(item)}
     <div class="article-body" data-effect-text>${paras}</div>
@@ -100,7 +104,9 @@ function bindEvidence() {
 }
 
 function revealEnding() {
-  const ending=document.querySelector(".last-record"); if (ending && isEndingVisible()) { ending.hidden=false; requestAnimationFrame(()=>ending.classList.add("revealed")); }
+  const ending=document.querySelector(".last-record"); if (!ending || !isEndingVisible()) return;
+  ending.hidden=false; requestAnimationFrame(()=>ending.classList.add("revealed"));
+  if (!state.endingSeen) { state.endingSeen=true; saveState(state); document.body.classList.add("ending-seen"); }
 }
 
 recordsButton.addEventListener("click", () => { const open=recordsPanel.hidden; recordsPanel.hidden=!open; recordsButton.setAttribute("aria-expanded",String(open)); });

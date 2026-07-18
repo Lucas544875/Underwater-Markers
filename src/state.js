@@ -1,5 +1,5 @@
 const KEY = "underwater-markers:v1";
-const defaults = { visited: [1], evidenceMoves: 0, evidenceSeen: [], damage: 0, interactions: 0 };
+const defaults = { visited: [1], evidenceMoves: 0, evidenceSeen: [], damage: 0, interactions: 0, endingSeen: false };
 
 function normalize(value = {}) {
   return {
@@ -7,7 +7,8 @@ function normalize(value = {}) {
     evidenceMoves: Math.max(0, Number(value.evidenceMoves) || 0),
     evidenceSeen: Array.isArray(value.evidenceSeen) ? [...new Set(value.evidenceSeen)] : [],
     damage: Math.min(1, Math.max(0, Number(value.damage) || 0)),
-    interactions: Math.max(0, Number(value.interactions) || 0)
+    interactions: Math.max(0, Number(value.interactions) || 0),
+    endingSeen: Boolean(value.endingSeen)
   };
 }
 
