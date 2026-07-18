@@ -108,6 +108,8 @@ export function createHorrorEffects({ getState, save }) {
             x: 0, y: 0, vx: 0, vy: 0,
             mass: .7 + Math.random() * .6,
             fade: 1, cap: 1, loose: false,
+            heading: Math.random() * Math.PI * 2,
+            phase: Math.random() * Math.PI * 2,
           });
         }
       }
@@ -220,6 +222,7 @@ export function createHorrorEffects({ getState, save }) {
   function sweep(particle, directionX, directionY) {
     particle.loose = true;
     particle.cap = Math.max(.28, particle.cap * .6);
+    particle.heading = Math.atan2(directionY, directionX) + (Math.random() - .5) * .8;
     particle.vx += directionX * (14 + Math.random() * 20);
     particle.vy += directionY * (30 + Math.random() * 42);
     addDamage(.0008 + ((depth - 1) / 6) * .0012);
@@ -237,7 +240,7 @@ export function createHorrorEffects({ getState, save }) {
     const fadeFloor = Math.max(.1, .58 - normalizedDepth * .48);
     for (const particle of particles) {
       const viewY = particle.docTop - scrollY;
-      if (viewY < -160 || viewY > height + 160) continue;
+      if (!particle.loose && (viewY < -160 || viewY > height + 160)) continue;
       let forceX = 0;
       let forceY = 0;
       for (const wake of wakes) {
@@ -247,9 +250,26 @@ export function createHorrorEffects({ getState, save }) {
         forceY += wake.vy * influence;
       }
       const fluid = fluidVelocityAt(particle.anchorX + particle.x, viewY + particle.y);
-      const restore = particle.loose ? 1.4 : springK;
+      const restore = particle.loose ? 0 : springK;
       particle.vx += ((forceX * gain + fluid[0] * fluidGain) * particle.mass - restore * particle.x) * deltaTime;
       particle.vy += ((forceY * gain + fluid[1] * fluidGain) * particle.mass - restore * particle.y) * deltaTime;
+      if (particle.loose) {
+        particle.phase += deltaTime * (1.2 + particle.mass);
+        particle.heading += ((Math.random() - .5) * 3 + Math.sin(particle.phase) * .7) * deltaTime;
+        const thrust = (200 + particle.mass * 160) * deltaTime;
+        particle.vx += Math.cos(particle.heading) * thrust;
+        particle.vy += Math.sin(particle.heading) * thrust * .6;
+        const screenX = particle.anchorX + particle.x;
+        const screenY = viewY + particle.y;
+        const overflowX = screenX < 30 ? 30 - screenX : screenX > width - 30 ? width - 30 - screenX : 0;
+        const overflowY = screenY < 30 ? 30 - screenY : screenY > height - 30 ? height - 30 - screenY : 0;
+        if (overflowX || overflowY) {
+          particle.vx += Math.max(-150, Math.min(150, overflowX)) * 9 * deltaTime;
+          particle.vy += Math.max(-150, Math.min(150, overflowY)) * 9 * deltaTime;
+          const target = Math.atan2(height / 2 - screenY, width / 2 - screenX);
+          particle.heading += Math.atan2(Math.sin(target - particle.heading), Math.cos(target - particle.heading)) * 2.5 * deltaTime;
+        }
+      }
       particle.vx *= damping;
       particle.vy *= damping;
       particle.x += particle.vx * deltaTime;
@@ -261,7 +281,6 @@ export function createHorrorEffects({ getState, save }) {
       }
       if (particle.loose) {
         particle.fade = Math.max(fadeFloor, particle.fade - deltaTime * .5);
-        if (offset < 4 && Math.abs(particle.vx) + Math.abs(particle.vy) < 2.5) particle.loose = false;
       } else if (particle.fade < particle.cap) {
         particle.fade = Math.min(particle.cap, particle.fade + deltaTime * .02);
       }
