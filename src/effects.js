@@ -1,4 +1,3 @@
-const RED = "151,20,27";
 const GLUE_TOKEN = /^[ぁ-ん]{1,2}$/;
 const PUNCTUATION = /^[、。・「」『』（）…―ー\s]+$/;
 
@@ -22,7 +21,6 @@ export function createHorrorEffects({ getState, save }) {
   let saveTimer = 0;
   let pointer = null;
   const wakes = [];
-  const stains = [];
   const particles = [];
 
   const CELL = 24;
@@ -213,12 +211,6 @@ export function createHorrorEffects({ getState, save }) {
     if (wakes.length > 10) wakes.shift();
   }
 
-  function stain(x, y, strength) {
-    if (reducedMotion || depth < 2) return;
-    stains.push({ x, docY: y + scrollY, strength, age: 0 });
-    if (stains.length > 24) stains.shift();
-  }
-
   function sweep(particle, directionX, directionY) {
     particle.loose = true;
     particle.cap = Math.max(.28, particle.cap * .6);
@@ -293,53 +285,6 @@ export function createHorrorEffects({ getState, save }) {
     }
   }
 
-  function drawStains() {
-    if (!stains.length) return;
-    output.lineCap = "square";
-    for (const mark of stains) {
-      const y = mark.docY - scrollY;
-      if (y < -60 || y > height + 60) continue;
-      const settle = Math.max(.35, 1 - mark.age / 40);
-      for (let index = 0; index < 4; index += 1) {
-        output.strokeStyle = `rgba(${RED},${mark.strength * (.2 - index * .035) * settle})`;
-        output.lineWidth = 1 + index * 2.5;
-        output.beginPath();
-        output.moveTo(mark.x + index - 1.5, y - 13 - index * 3);
-        output.lineTo(mark.x + index - 1.5, y + 15 + index * 5);
-        output.stroke();
-      }
-    }
-  }
-
-  function drawWaterline() {
-    const state = getState();
-    const normalizedDepth = (depth - 1) / 6;
-    if (normalizedDepth < .28) return;
-    const level = Math.min(.34, Math.max(0, (normalizedDepth - .25) * .22 + state.damage * .13));
-    if (level < .015) return;
-    const top = height * (1 - level);
-    output.save();
-    output.beginPath();
-    output.moveTo(0, height);
-    output.lineTo(0, top);
-    for (let x = 0; x <= width + 40; x += 40) {
-      let offset = Math.sin(x * .012 + depth * 1.7) * 2.4 + Math.sin(x * .027 + state.damage * 11) * 1.3;
-      for (const wake of wakes) {
-        const influence = Math.max(0, 1 - wake.age / wake.life);
-        offset += wake.vy * influence * Math.exp(-Math.pow((top - wake.y) / wake.radius, 2)) * .08;
-      }
-      output.lineTo(x, top + offset);
-    }
-    output.lineTo(width, height);
-    output.closePath();
-    output.fillStyle = `rgba(5,18,18,${.025 + normalizedDepth * .07 + state.damage * .06})`;
-    output.fill();
-    output.strokeStyle = `rgba(42,67,64,${.08 + normalizedDepth * .1})`;
-    output.lineWidth = 1;
-    output.stroke();
-    output.restore();
-  }
-
   function clearObstacles() {
     output.save();
     output.globalCompositeOperation = "destination-out";
@@ -357,7 +302,6 @@ export function createHorrorEffects({ getState, save }) {
     lastFrame = now;
     for (const wake of wakes) wake.age += deltaTime;
     while (wakes.length && wakes[0].age >= wakes[0].life) wakes.shift();
-    for (const mark of stains) mark.age += deltaTime;
     if (!reducedMotion) stepFluid(deltaTime);
     updateParticles(deltaTime);
 
@@ -366,8 +310,6 @@ export function createHorrorEffects({ getState, save }) {
     output.save();
     output.scale(ratio, ratio);
     renderFluid();
-    drawStains();
-    drawWaterline();
     clearObstacles();
     output.restore();
     raf = requestAnimationFrame(draw);
@@ -399,7 +341,6 @@ export function createHorrorEffects({ getState, save }) {
   function onClick(event) {
     if (event.target.closest("dialog, .masthead")) return;
     const normalizedDepth = (depth - 1) / 6;
-    stain(event.clientX, event.clientY, .35 + normalizedDepth * .35);
     addWake(event.clientY, (event.clientX < width / 2 ? -1 : 1) * 24, 8, 110, .65);
     splat(event.clientX, event.clientY, (event.clientX < width / 2 ? -1 : 1) * 60, 45);
     if (depth >= 5) {
@@ -421,7 +362,6 @@ export function createHorrorEffects({ getState, save }) {
 
   function reset() {
     wakes.length = 0;
-    stains.length = 0;
     if (u) { u.fill(0); v.fill(0); }
     for (const particle of particles) {
       Object.assign(particle, { x: 0, y: 0, vx: 0, vy: 0, fade: 1, cap: 1, loose: false });
