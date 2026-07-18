@@ -1,5 +1,5 @@
 import "./styles.css";
-import { articles, colophon, evidence, imagePath } from "./content.js";
+import { articles, ending, evidence, imagePath } from "./content.js";
 import { clearState, loadState, saveState } from "./state.js";
 import { createHorrorEffects } from "./effects.js";
 
@@ -29,58 +29,86 @@ function articleFigure(item) {
     <div class="photo-frame">
       <img src="${imagePath}" alt="${item.image.caption}" />
       ${anomalyCount ? `<span class="photo-anomalies" aria-hidden="true">${anomalies}</span>` : ""}
-      ${anomalyCount ? `<span class="photo-verification">初出　${item.id >= 6 ? "照合不能" : "未確認"}</span>` : ""}
+      ${anomalyCount ? `<span class="photo-verification">画像劣化　なし（写像則）</span>` : ""}
     </div>
-    <figcaption><span>資料写真</span>${item.image.caption}</figcaption>
+    <figcaption><span>収蔵画像</span>${item.image.caption}</figcaption>
   </figure>`;
+}
+
+function paragraphHtml(entry) {
+  if (typeof entry === "string") return `<p class="body-line">${entry}</p>`;
+  if (entry.kind === "buoyant") return `<p class="body-line line-buoyant">${entry.text}</p>`;
+  return `<p class="body-line line-drowned w${entry.w || 1}">${entry.text}</p>`;
+}
+
+function experimentTable(table) {
+  if (!table) return "";
+  return `<div class="exp-table"><table>
+    <thead><tr>${table.head.map((h) => `<th>${h}</th>`).join("")}</tr></thead>
+    <tbody>${table.rows.map((row) => `<tr class="${row.cls.includes("control") ? "control-row" : ""}">
+      <td class="specimen ${row.cls}">${row.text}</td><td>${row.result}</td>
+    </tr>`).join("")}</tbody>
+  </table></div>`;
 }
 
 function finalArchive() {
   const spots = [[6, 4], [52, 2], [30, 34], [4, 64], [55, 60]];
   const tilts = [-2, 1.6, -1.2, 2.4, -2.2];
   return `<section class="archive" aria-labelledby="archive-title">
-    <div class="archive-heading"><p>現存する記録 5件</p><h2 id="archive-title">時系列は失われています</h2></div>
+    <div class="archive-heading"><p>付録YMS-B 収蔵断片 5点</p><h2 id="archive-title">各断片の閲覧は、一度しか行えません</h2></div>
     <div class="evidence-field">
-      ${evidence.map((item, i) => `<article class="evidence evidence-${item.tone}" data-id="${item.id}" tabindex="0" style="--x:${spots[i][0]}%;--y:${spots[i][1]}%;--r:${tilts[i]}deg">
-        <div class="evidence-doc"><span>${item.quote}</span></div>
-        <div class="evidence-meta"><time>${item.time}</time><p>${item.label}</p><span>${item.file}</span></div>
-      </article>`).join("")}
+      ${evidence.map((item, i) => {
+        const seen = state.evidenceSeen.includes(item.id);
+        return `<article class="evidence evidence-${item.tone}" data-id="${item.id}" tabindex="0" style="--x:${spots[i][0]}%;--y:${spots[i][1]}%;--r:${tilts[i]}deg">
+        <div class="evidence-doc ${seen ? "drowned-out" : "sealed"}">
+          <span class="frag-name">${item.name}</span>
+          <span class="frag-quote">${seen ? "──　判読不能　──" : item.quote}</span>
+        </div>
+        <div class="evidence-meta"><time>${item.file}</time><p>${item.label}</p><span class="frag-state">${seen ? "閲覧済 / 溺没" : "未閲覧 / 閲覧は一度のみ"}</span></div>
+      </article>`;
+      }).join("")}
     </div>
-    <p class="archive-hint">記録に触れた痕跡は保存されます。</p>
+    <p class="archive-hint">触れた断片は、溺れ始めます。</p>
+    <button class="finish-reading" type="button">これ以上読まずに、閲覧を終了する</button>
     <div class="last-record" ${isEndingVisible() ? "" : "hidden"}>
-      <div class="colophon"><span>${colophon.kicker}</span><p>${colophon.body}</p></div>
-      <p class="final-line">${colophon.finalLine}</p>
-      <blockquote>${colophon.question}</blockquote>
-      <a class="return-link" href="#article-1">${colophon.returnLabel}</a>
+      <p class="pristine">${ending.pristine}</p>
+      <blockquote class="pristine">${ending.assurance}</blockquote>
+      <div class="view-count">
+        <p>閲覧記録：あなたは本文書 第9版の${ending.viewerNumber.toLocaleString("ja-JP")}人目の閲覧者です。</p>
+        <p>あなたの閲覧により、本文書の残存率は${(state.damage * 3.1 + 0.02).toFixed(2)}％低下しました。</p>
+        <p>次の閲覧者に残る本文は、あなたが読んだものより少ない。</p>
+      </div>
+      <a class="return-link" href="#article-1">${ending.returnLabel}</a>
     </div>
   </section>`;
 }
 
-function isEndingVisible() { return state.evidenceMoves >= 4 || state.evidenceSeen.length === evidence.length; }
+function isEndingVisible() { return state.endingSeen || state.evidenceSeen.length === evidence.length; }
 
 function renderArticle() {
   const item = articles[current - 1];
   if (!state.visited.includes(current)) state.visited.push(current);
   saveState(state);
-  document.title = `${item.title} | 北嶺日報`;
+  document.title = `${item.title} | 記録保全機構`;
   document.body.classList.toggle("ending-seen", state.endingSeen);
 
-  const paras = item.paragraphs.map((p) => `<p class="body-line">${p}</p>`).join("");
+  const paras = item.paragraphs.map(paragraphHtml).join("");
   const next = articles[current];
   app.innerHTML = `<article class="news-article depth-${current}">
     <header class="article-header">
-      <div class="article-flags"><span>${item.section}</span><span>記事 ${String(current).padStart(2,"0")} / 07</span></div>
+      <div class="article-flags"><span>${item.section}</span><span>文書 ${String(current).padStart(2,"0")} / 07</span></div>
       <h1 data-effect-text>${item.title}</h1>
       <p class="lead" data-effect-text>${item.lead}</p>
-      <dl class="byline"><div><dt>公開</dt><dd>${item.date}</dd></div><div class="byline-update"><dt>更新</dt><dd>${item.updated}</dd></div><div><dt>取材</dt><dd>${item.author}</dd></div></dl>
+      <dl class="byline">${item.meta.map((m) => `<div><dt>${m.k}</dt><dd>${m.v}</dd></div>`).join("")}</dl>
     </header>
     ${articleFigure(item)}
+    ${experimentTable(item.table)}
     <div class="article-body" data-effect-text>${paras}</div>
     ${current === 7 ? finalArchive() : ""}
-    <aside class="notice"><span>編集部注</span><p data-effect-text>${item.notice}</p></aside>
+    <aside class="notice"><span>機構注記</span><p data-effect-text>${item.notice}</p></aside>
     <footer class="article-footer">
-      ${current > 1 ? `<a class="previous-link" href="#article-${current - 1}">前の記録</a>` : `<span></span>`}
-      ${next ? `<a class="related-link" href="#article-${current + 1}"><span>関連する記録</span><strong>${next.title}</strong><small>${next.date}</small></a>` : `<span class="archive-end">記録はここで途切れています</span>`}
+      ${current > 1 ? `<a class="previous-link" href="#article-${current - 1}">前の文書</a>` : `<span></span>`}
+      ${next ? `<a class="related-link" href="#article-${current + 1}"><span>次の文書</span><strong>${next.title}</strong><small>${next.section}</small></a>` : `<span class="archive-end">この先の文書は存在しません</span>`}
     </footer>
   </article>`;
   renderRecords(); bindEvidence(); effects.refresh(current);
@@ -88,24 +116,39 @@ function renderArticle() {
 }
 
 function renderRecords() {
-  recordsPanel.innerHTML = `<div class="records-title"><span>保存記録</span><strong>${state.visited.length} / 7</strong></div>${articles.map((a) => state.visited.includes(a.id) ? `<a href="#article-${a.id}" class="${a.id === current ? "current" : ""} visited"><span>${String(a.id).padStart(2,"0")}</span><span>${a.title}</span></a>` : `<div class="locked"><span>${String(a.id).padStart(2,"0")}</span><span>未取得の記録</span></div>`).join("")}`;
+  recordsPanel.innerHTML = `<div class="records-title"><span>文書一覧</span><strong>${state.visited.length} / 7</strong></div>${articles.map((a) => state.visited.includes(a.id) ? `<a href="#article-${a.id}" class="${a.id === current ? "current" : ""} visited"><span>${String(a.id).padStart(2,"0")}</span><span>${a.title}</span></a>` : `<div class="locked"><span>${String(a.id).padStart(2,"0")}</span><span>未閲覧の文書</span></div>`).join("")}`;
 }
 
 function bindEvidence() {
   const field = document.querySelector(".evidence-field"); if (!field) return;
+  document.querySelector(".finish-reading")?.addEventListener("click", () => revealEnding(true));
   field.querySelectorAll(".evidence").forEach((card) => {
     let drag = null;
-    const inspect = () => { if (!state.evidenceSeen.includes(card.dataset.id)) state.evidenceSeen.push(card.dataset.id); card.classList.add("inspected"); saveState(state); revealEnding(); };
+    const doc = card.querySelector(".evidence-doc");
+    const stateLabel = card.querySelector(".frag-state");
+    const inspect = () => {
+      if (state.evidenceSeen.includes(card.dataset.id)) return;
+      state.evidenceSeen.push(card.dataset.id);
+      card.classList.add("inspected");
+      doc.classList.remove("sealed");
+      stateLabel.textContent = "閲覧中 / 溺れています";
+      saveState(state);
+      setTimeout(() => {
+        doc.classList.add("drowning");
+        stateLabel.textContent = "閲覧済 / 溺没";
+        revealEnding();
+      }, 9000);
+    };
     card.addEventListener("pointerdown", (event) => { inspect(); drag = { x:event.clientX, y:event.clientY, left:card.offsetLeft, top:card.offsetTop }; card.setPointerCapture(event.pointerId); card.classList.add("dragging"); });
     card.addEventListener("pointermove", (event) => { if (!drag) return; const maxX=field.clientWidth-card.offsetWidth; const maxY=field.clientHeight-card.offsetHeight; card.style.left=`${Math.max(0,Math.min(maxX,drag.left+event.clientX-drag.x))}px`; card.style.top=`${Math.max(0,Math.min(maxY,drag.top+event.clientY-drag.y))}px`; card.style.setProperty("--x","0px"); card.style.setProperty("--y","0px"); });
-    card.addEventListener("pointerup", () => { if (!drag) return; drag=null; card.classList.remove("dragging"); state.evidenceMoves++; saveState(state); revealEnding(); });
-    card.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); inspect(); state.evidenceMoves++; card.style.transform=`translate(${(state.evidenceMoves%3-1)*18}px,${state.evidenceMoves%2*12}px) rotate(var(--r))`; revealEnding(); } });
+    card.addEventListener("pointerup", () => { if (!drag) return; drag=null; card.classList.remove("dragging"); state.evidenceMoves++; saveState(state); });
+    card.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); inspect(); } });
   });
 }
 
-function revealEnding() {
-  const ending=document.querySelector(".last-record"); if (!ending || !isEndingVisible()) return;
-  ending.hidden=false; requestAnimationFrame(()=>ending.classList.add("revealed"));
+function revealEnding(force = false) {
+  const panel=document.querySelector(".last-record"); if (!panel || (!force && !isEndingVisible())) return;
+  panel.hidden=false; requestAnimationFrame(()=>panel.classList.add("revealed"));
   if (!state.endingSeen) { state.endingSeen=true; saveState(state); document.body.classList.add("ending-seen"); }
 }
 

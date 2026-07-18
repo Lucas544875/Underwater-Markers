@@ -65,7 +65,7 @@ export function createHorrorEffects({ getState, save }) {
 
   function addDamage(amount) {
     const state = getState();
-    // 第4記事（大量閲覧が本物の証拠を消した記事）だけ、閲覧による損耗が速い
+    // 補遺1・起源調査（文書4）は最も正確な文書であり、溺死則により劣化が最も速い
     state.damage = Math.min(1, state.damage + amount * (depth === 4 ? 1.6 : 1));
     state.interactions += 1;
     syncVariables();
@@ -94,7 +94,8 @@ export function createHorrorEffects({ getState, save }) {
     particles.length = 0;
     if (reducedMotion) return;
     for (const root of document.querySelectorAll("[data-effect-text]")) {
-      const blocks = root.matches("p,h1") ? [root] : [...root.querySelectorAll("p")];
+      // 浮力則（.line-buoyant）と溺没済みの文（.line-drowned）は水面に反応しない
+      const blocks = root.matches("p,h1") ? [root] : [...root.querySelectorAll("p:not(.line-buoyant):not(.line-drowned)")];
       for (const block of blocks) {
         if (!block.dataset.segmented) {
           block.innerHTML = splitPhrases(block.textContent)
