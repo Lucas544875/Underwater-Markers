@@ -1,3 +1,5 @@
+import { Parser, jaModel } from "budoux";
+
 const CELL_SIZE = 42;
 const FIELD_FPS = 32;
 const DETACH_DISTANCE = 54;
@@ -7,12 +9,10 @@ const POINTER_FORCE = 520;
 const POINTER_RADIUS = 1.45;
 const OFFSCREEN_MARGIN = 180;
 const SKIP_TAGS = new Set(["RT", "RP", "SCRIPT", "STYLE"]);
+const phraseParser = new Parser(jaModel);
 
 export function createOceanField({ roots, onActivity = () => {} }) {
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const segmenter = "Segmenter" in Intl
-    ? new Intl.Segmenter("ja", { granularity: "word" })
-    : null;
   const rootList = [...roots];
   const blockByRoot = new Map();
   const activeBlocks = new Set();
@@ -35,10 +35,11 @@ export function createOceanField({ roots, onActivity = () => {} }) {
   let knownSegments = 0;
   let activityAt = 0;
 
-  function splitWords(text) {
-    if (!text.trim()) return [{ segment: text, isWordLike: false }];
-    if (!segmenter) return [{ segment: text, isWordLike: true }];
-    return [...segmenter.segment(text)];
+  function splitPhrases(text) {
+    if (!text.trim()) return [text];
+    return phraseParser.parse(text)
+      .flatMap((phrase) => phrase.split(/(\s+)/u))
+      .filter(Boolean);
   }
 
   function segmentRoot(root) {
@@ -58,14 +59,14 @@ export function createOceanField({ roots, onActivity = () => {} }) {
     const particles = [];
     for (const textNode of textNodes) {
       const fragment = document.createDocumentFragment();
-      for (const { segment, isWordLike } of splitWords(textNode.nodeValue)) {
-        if (!isWordLike) {
-          fragment.append(document.createTextNode(segment));
+      for (const phrase of splitPhrases(textNode.nodeValue)) {
+        if (!phrase.trim()) {
+          fragment.append(document.createTextNode(phrase));
           continue;
         }
         const element = document.createElement("span");
         element.className = "fluid-segment";
-        element.textContent = segment;
+        element.textContent = phrase;
         fragment.append(element);
         particles.push({
           element,

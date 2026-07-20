@@ -11,5 +11,8 @@
   "devDependencies": {
     "playwright": "^1.61.1",
     "vite": "^7.0.4"
+  },
+  "dependencies": {
+    "budoux": "0.7.0"
   }
 }
