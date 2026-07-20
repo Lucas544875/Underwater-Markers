@@ -7,12 +7,6 @@ const PUNCTUATION = /[、。！？）」』】…―：；]/;
 
 export function createOceanField({ roots, onActivity = () => {} }) {
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const canvas = document.createElement("canvas");
-  canvas.id = "ocean-field";
-  canvas.setAttribute("aria-hidden", "true");
-  document.body.prepend(canvas);
-
-  const context = canvas.getContext("2d", { alpha: true });
   const segmenter = "Segmenter" in Intl
     ? new Intl.Segmenter("ja", { granularity: "word" })
     : null;
@@ -22,7 +16,6 @@ export function createOceanField({ roots, onActivity = () => {} }) {
 
   let width = innerWidth;
   let height = innerHeight;
-  let ratio = 1;
   let cols = 0;
   let rows = 0;
   let fieldX;
@@ -137,13 +130,8 @@ export function createOceanField({ roots, onActivity = () => {} }) {
   for (const root of rootList) observer.observe(root);
 
   function resize() {
-    ratio = Math.min(devicePixelRatio || 1, 1.5);
     width = innerWidth;
     height = innerHeight;
-    canvas.width = Math.round(width * ratio);
-    canvas.height = Math.round(height * ratio);
-    canvas.style.width = `${width}px`;
-    canvas.style.height = `${height}px`;
     cols = Math.ceil(width / CELL_SIZE) + 3;
     rows = Math.ceil(height / CELL_SIZE) + 3;
     const size = cols * rows;
@@ -215,38 +203,6 @@ export function createOceanField({ roots, onActivity = () => {} }) {
     }
   }
 
-  function renderField() {
-    context.setTransform(1, 0, 0, 1, 0, 0);
-    context.clearRect(0, 0, canvas.width, canvas.height);
-    if (paused) return;
-    context.save();
-    context.scale(ratio, ratio);
-    context.lineCap = "round";
-
-    for (let row = 1; row < rows - 1; row += 1) {
-      for (let column = 1; column < cols - 1; column += 1) {
-        const index = row * cols + column;
-        const velocityX = fieldX[index];
-        const velocityY = fieldY[index];
-        const speed = Math.hypot(velocityX, velocityY);
-        if (speed < 3.5) continue;
-        const x = (column - 1) * CELL_SIZE;
-        const y = (row - 1) * CELL_SIZE;
-        const length = Math.min(22, 4 + speed * 0.045);
-        const nx = velocityX / speed;
-        const ny = velocityY / speed;
-        const alpha = Math.min(0.22, 0.025 + speed / 1800);
-        context.strokeStyle = `rgba(20, 100, 132, ${alpha})`;
-        context.lineWidth = 0.7 + Math.min(1.5, speed / 180);
-        context.beginPath();
-        context.moveTo(x - nx * length, y - ny * length);
-        context.quadraticCurveTo(x, y, x + nx * length * 0.38 - ny * 2, y + ny * length * 0.38 + nx * 2);
-        context.stroke();
-      }
-    }
-    context.restore();
-  }
-
   function updateParticles(deltaTime, now) {
     let activeParticles = 0;
     const damping = Math.exp(-6.4 * deltaTime);
@@ -308,7 +264,6 @@ export function createOceanField({ roots, onActivity = () => {} }) {
       stepField(deltaTime);
       updateParticles(deltaTime, now);
     }
-    renderField();
   }
 
   function onPointerMove(event) {
@@ -368,7 +323,6 @@ export function createOceanField({ roots, onActivity = () => {} }) {
       fieldX?.fill(0);
       fieldY?.fill(0);
       resetParticles();
-      renderField();
       onActivity({ active: 0, total: knownSegments });
     }
     return paused;
@@ -403,7 +357,6 @@ export function createOceanField({ roots, onActivity = () => {} }) {
     destroy() {
       cancelAnimationFrame(animationFrame);
       observer.disconnect();
-      canvas.remove();
       removeEventListener("pointermove", onPointerMove);
       removeEventListener("pointerdown", onPointerDown);
       removeEventListener("scroll", onScroll);

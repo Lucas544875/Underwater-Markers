@@ -54,15 +54,6 @@ a, button { color: inherit; }
 a { text-underline-offset: 0.22em; }
 button { font: inherit; }
 
-#ocean-field {
-  position: fixed;
-  inset: 0;
-  z-index: 9;
-  pointer-events: none;
-  mix-blend-mode: multiply;
-  opacity: 0.95;
-}
-
 .reader-bar {
   position: fixed;
   inset: 0 0 auto;
@@ -610,6 +601,6 @@ ruby .fluid-segment { display: inline; }
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
-  #ocean-field, .segment-meter { display: none; }
+  .segment-meter { display: none; }
   .fluid-segment { transform: none !important; }
 }
