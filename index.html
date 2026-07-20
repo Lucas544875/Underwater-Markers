@@ -3,38 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#f1f3f0" />
-    <meta name="description" content="閲覧されるたびに損なわれる収容記録 YMS-1938『溺れる報告書』" />
-    <title>記録保全機構 | 収容記録 YMS-1938</title>
+    <meta name="theme-color" content="#100c0a" />
+    <meta name="description" content="老人と海（アーネスト・ヘミングウェイ、石波杏訳／青空文庫・CC BY 2.1 JP）——スクロールとカーソルの波に応じて文章がたゆたう、インタラクティブな読書体験" />
+    <title>老人と海</title>
   </head>
   <body>
-    <header class="masthead">
-      <a class="brand" href="#article-1" aria-label="記録保全機構 文書先頭">
-        <span class="brand-mark">機密</span><span>記録保全機構</span>
-      </a>
-      <div class="edition">特別閲覧文書　YMS-1938『溺れる報告書』第9版</div>
-      <nav aria-label="記事操作">
-        <button class="icon-button" id="records-button" type="button" aria-expanded="false" aria-controls="records-panel" title="記録一覧">
-          <span aria-hidden="true">☷</span><span class="button-label">記録</span>
-        </button>
-        <button class="icon-button" id="reset-button" type="button" title="記録を初期化">
-          <span aria-hidden="true">↺</span><span class="button-label">初期化</span>
-        </button>
-      </nav>
-    </header>
-    <aside id="records-panel" class="records-panel" hidden aria-label="閲覧記録"></aside>
     <main id="app" tabindex="-1"></main>
-    <dialog id="reset-dialog">
-      <form method="dialog">
-        <p class="dialog-kicker">記録保全機構　管理者権限</p>
-        <h2>文書を初期状態に復元しますか</h2>
-        <p>あなたの閲覧が残した損傷と、閲覧の記録がすべて失われます。この操作は、次の閲覧者には通知されません。</p>
-        <div class="dialog-actions">
-          <button value="cancel">キャンセル</button>
-          <button class="danger" id="confirm-reset" value="confirm">初期化</button>
-        </div>
-      </form>
-    </dialog>
     <script type="module" src="/src/app.js"></script>
   </body>
 </html>
