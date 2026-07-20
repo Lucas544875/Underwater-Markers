@@ -61,7 +61,10 @@ export function createOceanField({ roots, onActivity = () => {} }) {
     const particles = [];
     for (const textNode of textNodes) {
       const fragment = document.createDocumentFragment();
-      for (const phrase of splitPhrases(textNode.nodeValue)) {
+      const phrases = root.hasAttribute("data-fluid-whole")
+        ? [textNode.nodeValue]
+        : splitPhrases(textNode.nodeValue);
+      for (const phrase of phrases) {
         if (!phrase.trim()) {
           fragment.append(document.createTextNode(phrase));
           continue;

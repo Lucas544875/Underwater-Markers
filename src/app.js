@@ -20,11 +20,11 @@ app.innerHTML = `
       <p class="opening-overline"><span>AN OCEAN READING</span><span>1952 / 2015</span></p>
       <div class="opening-title-wrap">
         <p class="opening-original">${book.originalTitle}</p>
-        <h1 id="book-title" data-fluid-text>${book.title}</h1>
+        <h1 id="book-title" data-fluid-text data-fluid-whole>${book.title}</h1>
         <p class="opening-byline">${book.author}<small>${book.authorLatin}</small></p>
       </div>
       <div class="opening-bottom">
-        <p class="opening-copy">記憶は、波のように戻ってくる。<br />言葉に触れ、潮を起こしながら読む。</p>
+        <p class="opening-copy"></p>
         <a class="begin-reading" href="#book-start"><span>読みはじめる</span><i aria-hidden="true">↓</i></a>
       </div>
       <p class="opening-instruction"><span aria-hidden="true">↝</span> カーソルを動かす／ページを送る</p>
