@@ -3,11 +3,12 @@ import { Parser, jaModel } from "budoux";
 const CELL_SIZE = 42;
 const FIELD_FPS = 32;
 const DETACH_DISTANCE = 54;
-const DEFAULT_MAX_FIELD_VELOCITY =  3000;
+const DEFAULT_MAX_FIELD_VELOCITY = 3000;
 const POINTER_MAX_FIELD_VELOCITY = 2000;
 const POINTER_FORCE = 1000;
 const POINTER_RADIUS = 0.8;
 const POINTER_SPLAT_SPACING = CELL_SIZE * POINTER_RADIUS * 0.5;
+const SCROLL_FORCE = 0.3;
 const OFFSCREEN_MARGIN = 180;
 const SKIP_TAGS = new Set(["RT", "RP", "SCRIPT", "STYLE"]);
 const phraseParser = new Parser(jaModel);
@@ -233,8 +234,8 @@ export function createOceanField({ roots, onActivity = () => {} }) {
         activeParticles += 1;
         const [fluidX, fluidY] = velocityAt(screenX, screenY);
         const ambient = Math.sin(now * 0.00022 + particle.phase + anchorY * 0.004);
-        const spring = particle.detached ? 0 : 14.5 / particle.mass;
-        const damping = Math.exp(-(particle.detached ? 2.8 : 6.4) * deltaTime);
+        const spring = particle.detached ? 0 : 10.5 / particle.mass;
+        const damping = Math.exp(-(particle.detached ? 2.8 : 4.4) * deltaTime);
         const fluidInfluence = particle.detached ? 0.12 : 1;
         particle.vx += (fluidX * fluidInfluence + ambient * 3.2 - particle.x * spring) * deltaTime;
         particle.vy += (fluidY * fluidInfluence + Math.cos(particle.phase + now * 0.00018) * 1.2 - particle.y * spring) * deltaTime;
@@ -318,8 +319,8 @@ export function createOceanField({ roots, onActivity = () => {} }) {
     const y = height * 0.5;
     for (let index = 0; index < 4; index += 1) {
       const x = width * (0.14 + index * 0.24);
-      const crossCurrent = Math.sin(scrollY * 0.003 + index * 1.7) * Math.abs(velocity) * 0.075;
-      splat(x, y + (index % 2 ? 48 : -48), crossCurrent, -velocity * 0.21, 3.4);
+      const crossCurrent = Math.sin(scrollY * 0.003 + index * 1.7) * Math.abs(velocity) * 0.075 * SCROLL_FORCE;
+      splat(x, y + (index % 2 ? 48 : -48), crossCurrent, -velocity * 0.21 * SCROLL_FORCE, 3.4);
     }
   }
 
