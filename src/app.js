@@ -1,117 +1,117 @@
 import "./styles.css";
-import { articles, colophon, evidence, imagePath } from "./content.js";
-import { clearState, loadState, saveState } from "./state.js";
-import { createHorrorEffects } from "./effects.js";
+import bookHtml from "./book.html?raw";
+import { book, readingPhases } from "./content.js";
+import { createOceanField } from "./effects.js";
 
 const app = document.querySelector("#app");
-const recordsPanel = document.querySelector("#records-panel");
-const recordsButton = document.querySelector("#records-button");
-const resetDialog = document.querySelector("#reset-dialog");
-let state = loadState();
-let current = getRoute();
-const effects = createHorrorEffects({ getState: () => state, save: () => saveState(state) });
+const motionButton = document.querySelector("#motion-toggle");
+const motionLabel = document.querySelector("#motion-label");
+const percentLabel = document.querySelector("#reader-percent");
+const phaseLabel = document.querySelector("#reader-phase");
+const progressFill = document.querySelector("#reader-progress-fill");
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-function getRoute() {
-  const id = Number(location.hash.match(/article-(\d+)/)?.[1] || 1);
-  return Math.min(7, Math.max(1, id));
-}
-
-function articleFigure(item) {
-  if (!item.image) return "";
-  const anomalyCount = item.id >= 4 && item.image.crop !== "missing" ? Math.min(6, item.id - 1) : 0;
-  const anomalies = Array.from({ length: anomalyCount }, (_, index) => {
-    const left = [18, 33, 47, 62, 76, 86][index];
-    const top = [58, 41, 66, 49, 61, 35][index];
-    const height = [16, 22, 13, 19, 24, 14][index];
-    return `<i class="photo-marker marker-${index + 1}" style="--marker-x:${left}%;--marker-y:${top}%;--marker-h:${height}%"></i>`;
-  }).join("");
-  return `<figure class="article-photo crop-${item.image.crop}">
-    <div class="photo-frame">
-      <img src="${imagePath}" alt="${item.image.caption}" />
-      ${anomalyCount ? `<span class="photo-anomalies" aria-hidden="true">${anomalies}</span>` : ""}
-      ${anomalyCount ? `<span class="photo-verification">初出　${item.id >= 6 ? "照合不能" : "未確認"}</span>` : ""}
+app.innerHTML = `
+  <section class="opening" id="top" aria-labelledby="book-title">
+    <div class="opening-water" aria-hidden="true">
+      <i></i><i></i><i></i><i></i>
     </div>
-    <figcaption><span>資料写真</span>${item.image.caption}</figcaption>
-  </figure>`;
-}
-
-function finalArchive() {
-  const spots = [[6, 4], [52, 2], [30, 34], [4, 64], [55, 60]];
-  const tilts = [-2, 1.6, -1.2, 2.4, -2.2];
-  return `<section class="archive" aria-labelledby="archive-title">
-    <div class="archive-heading"><p>現存する記録 5件</p><h2 id="archive-title">時系列は失われています</h2></div>
-    <div class="evidence-field">
-      ${evidence.map((item, i) => `<article class="evidence evidence-${item.tone}" data-id="${item.id}" tabindex="0" style="--x:${spots[i][0]}%;--y:${spots[i][1]}%;--r:${tilts[i]}deg">
-        <div class="evidence-doc"><span>${item.quote}</span></div>
-        <div class="evidence-meta"><time>${item.time}</time><p>${item.label}</p><span>${item.file}</span></div>
-      </article>`).join("")}
+    <div class="opening-inner">
+      <p class="opening-overline"><span>AN OCEAN READING</span><span>1952 / 2015</span></p>
+      <div class="opening-title-wrap">
+        <p class="opening-original">${book.originalTitle}</p>
+        <h1 id="book-title" data-fluid-text>${book.title}</h1>
+        <p class="opening-byline">${book.author}<small>${book.authorLatin}</small></p>
+      </div>
+      <div class="opening-bottom">
+        <p class="opening-copy">記憶は、波のように戻ってくる。<br />言葉に触れ、潮を起こしながら読む。</p>
+        <a class="begin-reading" href="#book-start"><span>読みはじめる</span><i aria-hidden="true">↓</i></a>
+      </div>
+      <p class="opening-instruction"><span aria-hidden="true">↝</span> カーソルを動かす／ページを送る</p>
     </div>
-    <p class="archive-hint">記録に触れた痕跡は保存されます。</p>
-    <div class="last-record" ${isEndingVisible() ? "" : "hidden"}>
-      <div class="colophon"><span>${colophon.kicker}</span><p>${colophon.body}</p></div>
-      <p class="final-line">${colophon.finalLine}</p>
-      <blockquote>${colophon.question}</blockquote>
-      <a class="return-link" href="#article-1">${colophon.returnLabel}</a>
-    </div>
-  </section>`;
-}
+  </section>
 
-function isEndingVisible() { return state.evidenceMoves >= 4 || state.evidenceSeen.length === evidence.length; }
-
-function renderArticle() {
-  const item = articles[current - 1];
-  if (!state.visited.includes(current)) state.visited.push(current);
-  saveState(state);
-  document.title = `${item.title} | 北嶺日報`;
-  document.body.classList.toggle("ending-seen", state.endingSeen);
-
-  const paras = item.paragraphs.map((p) => `<p class="body-line">${p}</p>`).join("");
-  const next = articles[current];
-  app.innerHTML = `<article class="news-article depth-${current}">
-    <header class="article-header">
-      <div class="article-flags"><span>${item.section}</span><span>記事 ${String(current).padStart(2,"0")} / 07</span></div>
-      <h1 data-effect-text>${item.title}</h1>
-      <p class="lead" data-effect-text>${item.lead}</p>
-      <dl class="byline"><div><dt>公開</dt><dd>${item.date}</dd></div><div class="byline-update"><dt>更新</dt><dd>${item.updated}</dd></div><div><dt>取材</dt><dd>${item.author}</dd></div></dl>
+  <section class="book-shell" id="book-start" aria-labelledby="text-heading">
+    <header class="text-frontispiece">
+      <p>COMPLETE JAPANESE TRANSLATION</p>
+      <h2 id="text-heading">${book.title}</h2>
+      <dl>
+        <div><dt>著者</dt><dd>${book.author}</dd></div>
+        <div><dt>翻訳</dt><dd>${book.translator}</dd></div>
+        <div><dt>底本</dt><dd>${book.originalEdition}</dd></div>
+      </dl>
+      <div class="current-key" aria-label="操作方法">
+        <span><i class="key-pointer" aria-hidden="true"></i> 指先が潮を引く</span>
+        <span><i class="key-scroll" aria-hidden="true"></i> 巻物が海を送る</span>
+      </div>
+      <p class="edition-note">本作には、今日からみれば不適切と受け取られる可能性のある表現があります。青空文庫の方針に基づき、そのまま掲載しています。</p>
     </header>
-    ${articleFigure(item)}
-    <div class="article-body" data-effect-text>${paras}</div>
-    ${current === 7 ? finalArchive() : ""}
-    <aside class="notice"><span>編集部注</span><p data-effect-text>${item.notice}</p></aside>
-    <footer class="article-footer">
-      ${current > 1 ? `<a class="previous-link" href="#article-${current - 1}">前の記録</a>` : `<span></span>`}
-      ${next ? `<a class="related-link" href="#article-${current + 1}"><span>関連する記録</span><strong>${next.title}</strong><small>${next.date}</small></a>` : `<span class="archive-end">記録はここで途切れています</span>`}
-    </footer>
-  </article>`;
-  renderRecords(); bindEvidence(); effects.refresh(current);
-  scrollTo({ top: 0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+
+    <article class="book-copy" aria-label="老人と海 本文">
+      ${bookHtml}
+    </article>
+  </section>
+
+  <footer class="colophon" id="credit" aria-labelledby="credit-title">
+    <div class="colophon-number" aria-hidden="true">85</div>
+    <div class="colophon-main">
+      <p class="colophon-kicker">TEXT &amp; LICENSE</p>
+      <h2 id="credit-title">作品と翻訳について</h2>
+      <p>
+        『${book.title}』（${book.originalTitle}）<br />
+        ${book.author} 著 ／ ${book.translator} 訳
+      </p>
+      <p>
+        翻訳文は<a href="${book.sourceUrl}" target="_blank" rel="noreferrer">青空文庫 No.57347 収録ファイル</a>を利用し、
+        <a href="${book.licenseUrl}" target="_blank" rel="license noreferrer">${book.licenseLabel}</a>のもとで掲載しています。
+        ${book.translationPublished}。
+      </p>
+      <p class="adaptation-note">
+        本サイトでは、公式XHTMLのルビを保持したまま改ページ注記を区切りへ変換し、本文を段落化・分節化して動的に配置しています。
+        翻訳内容そのものの改変は行っていません。
+      </p>
+      <div class="colophon-links">
+        <a href="${book.cardUrl}" target="_blank" rel="noreferrer">青空文庫 図書カード ↗</a>
+        <a href="#top">はじめの岸へ戻る ↑</a>
+      </div>
+    </div>
+  </footer>
+`;
+
+const ocean = createOceanField({
+  roots: document.querySelectorAll("[data-fluid-text]"),
+  onActivity({ active, total }) {
+    const meter = document.querySelector("#active-segments");
+    if (meter) meter.textContent = `${active} / ${total}`;
+  },
+});
+
+let progressFrame = 0;
+function updateReadingPosition() {
+  progressFrame = 0;
+  const scrollable = Math.max(1, document.documentElement.scrollHeight - innerHeight);
+  const progress = Math.max(0, Math.min(1, scrollY / scrollable));
+  const percent = Math.round(progress * 100);
+  const phase = [...readingPhases].reverse().find((item) => progress >= item.at) || readingPhases[0];
+  percentLabel.textContent = `${percent}%`;
+  phaseLabel.textContent = phase.label;
+  progressFill.style.transform = `scaleX(${progress})`;
 }
 
-function renderRecords() {
-  recordsPanel.innerHTML = `<div class="records-title"><span>保存記録</span><strong>${state.visited.length} / 7</strong></div>${articles.map((a) => state.visited.includes(a.id) ? `<a href="#article-${a.id}" class="${a.id === current ? "current" : ""} visited"><span>${String(a.id).padStart(2,"0")}</span><span>${a.title}</span></a>` : `<div class="locked"><span>${String(a.id).padStart(2,"0")}</span><span>未取得の記録</span></div>`).join("")}`;
+addEventListener("scroll", () => {
+  if (!progressFrame) progressFrame = requestAnimationFrame(updateReadingPosition);
+}, { passive: true });
+
+motionButton.addEventListener("click", () => {
+  const paused = ocean.togglePaused();
+  motionButton.setAttribute("aria-pressed", String(paused));
+  motionLabel.textContent = paused ? "潮流を起こす" : "潮流を止める";
+});
+
+if (reducedMotion) {
+  motionButton.setAttribute("aria-pressed", "true");
+  motionLabel.textContent = "潮流は停止中";
 }
 
-function bindEvidence() {
-  const field = document.querySelector(".evidence-field"); if (!field) return;
-  field.querySelectorAll(".evidence").forEach((card) => {
-    let drag = null;
-    const inspect = () => { if (!state.evidenceSeen.includes(card.dataset.id)) state.evidenceSeen.push(card.dataset.id); card.classList.add("inspected"); saveState(state); revealEnding(); };
-    card.addEventListener("pointerdown", (event) => { inspect(); drag = { x:event.clientX, y:event.clientY, left:card.offsetLeft, top:card.offsetTop }; card.setPointerCapture(event.pointerId); card.classList.add("dragging"); });
-    card.addEventListener("pointermove", (event) => { if (!drag) return; const maxX=field.clientWidth-card.offsetWidth; const maxY=field.clientHeight-card.offsetHeight; card.style.left=`${Math.max(0,Math.min(maxX,drag.left+event.clientX-drag.x))}px`; card.style.top=`${Math.max(0,Math.min(maxY,drag.top+event.clientY-drag.y))}px`; card.style.setProperty("--x","0px"); card.style.setProperty("--y","0px"); });
-    card.addEventListener("pointerup", () => { if (!drag) return; drag=null; card.classList.remove("dragging"); state.evidenceMoves++; saveState(state); revealEnding(); });
-    card.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); inspect(); state.evidenceMoves++; card.style.transform=`translate(${(state.evidenceMoves%3-1)*18}px,${state.evidenceMoves%2*12}px) rotate(var(--r))`; revealEnding(); } });
-  });
-}
-
-function revealEnding() {
-  const ending=document.querySelector(".last-record"); if (!ending || !isEndingVisible()) return;
-  ending.hidden=false; requestAnimationFrame(()=>ending.classList.add("revealed"));
-  if (!state.endingSeen) { state.endingSeen=true; saveState(state); document.body.classList.add("ending-seen"); }
-}
-
-recordsButton.addEventListener("click", () => { const open=recordsPanel.hidden; recordsPanel.hidden=!open; recordsButton.setAttribute("aria-expanded",String(open)); });
-recordsPanel.addEventListener("click", (event) => { if(event.target.closest("a")){ recordsPanel.hidden=true; recordsButton.setAttribute("aria-expanded","false"); } });
-document.querySelector("#reset-button").addEventListener("click",()=>resetDialog.showModal());
-document.querySelector("#confirm-reset").addEventListener("click",()=>{ clearState(); state=loadState(); current=1; history.replaceState(null,"","#article-1"); effects.reset(); renderArticle(); });
-addEventListener("hashchange",()=>{ current=getRoute(); renderArticle(); app.focus({preventScroll:true}); });
-renderArticle();
+document.fonts?.ready.then(() => ocean.measure());
+updateReadingPosition();

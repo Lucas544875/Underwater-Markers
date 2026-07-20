@@ -1,386 +1,413 @@
-const GLUE_TOKEN = /^[ぁ-ん]{1,2}$/;
-const PUNCTUATION = /^[、。・「」『』（）…―ー\s]+$/;
+const CELL_SIZE = 42;
+const FIELD_FPS = 32;
+const MAX_OFFSET = 54;
+const OFFSCREEN_MARGIN = 180;
+const SKIP_TAGS = new Set(["RT", "RP", "SCRIPT", "STYLE"]);
+const PUNCTUATION = /[、。！？）」』】…―：；]/;
 
-export function createHorrorEffects({ getState, save }) {
+export function createOceanField({ roots, onActivity = () => {} }) {
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const canvas = document.createElement("canvas");
-  canvas.id = "horror-layer";
+  canvas.id = "ocean-field";
   canvas.setAttribute("aria-hidden", "true");
   document.body.prepend(canvas);
 
-  const output = canvas.getContext("2d");
-  const segmenter = "Segmenter" in Intl ? new Intl.Segmenter("ja", { granularity: "word" }) : null;
-  let width = 0;
-  let height = 0;
-  let ratio = 1;
-  let depth = 0;
-  let lastScroll = scrollY;
-  let lastScrollTime = performance.now();
-  let lastFrame = performance.now();
-  let raf = 0;
-  let saveTimer = 0;
-  let pointer = null;
-  const wakes = [];
-  const particles = [];
+  const context = canvas.getContext("2d", { alpha: true });
+  const segmenter = "Segmenter" in Intl
+    ? new Intl.Segmenter("ja", { granularity: "word" })
+    : null;
+  const rootList = [...roots];
+  const blockByRoot = new Map();
+  const activeBlocks = new Set();
 
-  const CELL = 24;
-  const fluidCanvas = document.createElement("canvas");
-  const fluidContext = fluidCanvas.getContext("2d");
+  let width = innerWidth;
+  let height = innerHeight;
+  let ratio = 1;
   let cols = 0;
   let rows = 0;
-  let u = null;
-  let v = null;
-  let u0 = null;
-  let v0 = null;
-  let fluidImage = null;
+  let fieldX;
+  let fieldY;
+  let nextX;
+  let nextY;
+  let paused = reducedMotion;
+  let animationFrame = 0;
+  let resizeFrame = 0;
+  let lastFrame = performance.now();
+  let lastScroll = scrollY;
+  let lastScrollAt = performance.now();
+  let pointer = null;
+  let knownSegments = 0;
+  let activityAt = 0;
+
+  function splitPhrases(text) {
+    if (!text.trim()) return [text];
+    if (!segmenter) return text.match(/.{1,7}/gu) || [text];
+
+    const phrases = [];
+    let phrase = "";
+    for (const { segment } of segmenter.segment(text)) {
+      phrase += segment;
+      const compactLength = phrase.replace(/\s/g, "").length;
+      const shouldBreak = compactLength >= 9
+        || (compactLength >= 4 && PUNCTUATION.test(phrase.at(-1)));
+      if (shouldBreak) {
+        phrases.push(phrase);
+        phrase = "";
+      }
+    }
+    if (phrase) phrases.push(phrase);
+    return phrases;
+  }
+
+  function segmentRoot(root) {
+    if (blockByRoot.has(root)) return blockByRoot.get(root);
+
+    const textNodes = [];
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        if (!node.nodeValue?.trim() || SKIP_TAGS.has(node.parentElement?.tagName)) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    });
+    while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+    const particles = [];
+    for (const textNode of textNodes) {
+      const fragment = document.createDocumentFragment();
+      for (const phrase of splitPhrases(textNode.nodeValue)) {
+        if (!phrase.trim()) {
+          fragment.append(document.createTextNode(phrase));
+          continue;
+        }
+        const element = document.createElement("span");
+        element.className = "fluid-segment";
+        element.textContent = phrase;
+        fragment.append(element);
+        particles.push({
+          element,
+          docX: 0,
+          docY: 0,
+          x: 0,
+          y: 0,
+          vx: 0,
+          vy: 0,
+          mass: 0.78 + Math.random() * 0.5,
+          phase: Math.random() * Math.PI * 2,
+        });
+      }
+      textNode.replaceWith(fragment);
+    }
+
+    const block = { root, particles, active: false };
+    blockByRoot.set(root, block);
+    knownSegments += particles.length;
+    measureBlock(block);
+    return block;
+  }
+
+  function measureBlock(block) {
+    for (const particle of block.particles) {
+      const rect = particle.element.getBoundingClientRect();
+      particle.docX = rect.left + scrollX + rect.width / 2 - particle.x;
+      particle.docY = rect.top + scrollY + rect.height / 2 - particle.y;
+    }
+  }
+
+  function measure() {
+    for (const block of blockByRoot.values()) measureBlock(block);
+  }
+
+  const observer = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      const block = entry.isIntersecting ? segmentRoot(entry.target) : blockByRoot.get(entry.target);
+      if (!block) continue;
+      block.active = entry.isIntersecting;
+      block.root.classList.toggle("fluid-active", entry.isIntersecting);
+      if (entry.isIntersecting) {
+        activeBlocks.add(block);
+        requestAnimationFrame(() => measureBlock(block));
+      } else {
+        activeBlocks.delete(block);
+      }
+    }
+  }, { rootMargin: `${OFFSCREEN_MARGIN}px 0px`, threshold: 0 });
+
+  for (const root of rootList) observer.observe(root);
 
   function resize() {
-    ratio = Math.min(devicePixelRatio || 1, 1.25);
+    ratio = Math.min(devicePixelRatio || 1, 1.5);
     width = innerWidth;
     height = innerHeight;
     canvas.width = Math.round(width * ratio);
     canvas.height = Math.round(height * ratio);
     canvas.style.width = `${width}px`;
     canvas.style.height = `${height}px`;
-    cols = Math.ceil(width / CELL) + 2;
-    rows = Math.ceil(height / CELL) + 2;
-    u = new Float32Array(cols * rows);
-    v = new Float32Array(cols * rows);
-    u0 = new Float32Array(cols * rows);
-    v0 = new Float32Array(cols * rows);
-    fluidCanvas.width = cols;
-    fluidCanvas.height = rows;
-    fluidImage = fluidContext.createImageData(cols, rows);
-    measureParticles();
+    cols = Math.ceil(width / CELL_SIZE) + 3;
+    rows = Math.ceil(height / CELL_SIZE) + 3;
+    const size = cols * rows;
+    fieldX = new Float32Array(size);
+    fieldY = new Float32Array(size);
+    nextX = new Float32Array(size);
+    nextY = new Float32Array(size);
+    measure();
   }
 
-  function syncVariables() {
-    const state = getState();
-    const normalizedDepth = (depth - 1) / 6;
-    const integrity = reducedMotion ? 1 : Math.max(.26, 1 - normalizedDepth * .58 - state.damage * .26);
-    document.documentElement.style.setProperty("--document-integrity", integrity.toFixed(3));
-    document.documentElement.style.setProperty("--effect-depth", normalizedDepth.toFixed(3));
-    document.documentElement.style.setProperty("--damage", state.damage.toFixed(3));
-  }
-
-  function addDamage(amount) {
-    const state = getState();
-    // 第4記事（大量閲覧が本物の証拠を消した記事）だけ、閲覧による損耗が速い
-    state.damage = Math.min(1, state.damage + amount * (depth === 4 ? 1.6 : 1));
-    state.interactions += 1;
-    syncVariables();
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(save, 180);
-  }
-
-  function escapeHtml(text) {
-    return text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-  }
-
-  function splitPhrases(text) {
-    if (!segmenter) return text.match(/.{1,4}/g) || [];
-    const phrases = [];
-    for (const { segment } of segmenter.segment(text)) {
-      const previous = phrases[phrases.length - 1];
-      const glue = previous && (PUNCTUATION.test(segment) ||
-        (GLUE_TOKEN.test(segment) && !PUNCTUATION.test(previous.slice(-1))));
-      if (glue) phrases[phrases.length - 1] += segment;
-      else phrases.push(segment);
-    }
-    return phrases;
-  }
-
-  function segmentArticle() {
-    particles.length = 0;
-    if (reducedMotion) return;
-    for (const root of document.querySelectorAll("[data-effect-text]")) {
-      const blocks = root.matches("p,h1") ? [root] : [...root.querySelectorAll("p")];
-      for (const block of blocks) {
-        if (!block.dataset.segmented) {
-          block.innerHTML = splitPhrases(block.textContent)
-            .map((phrase) => `<span class="wave-seg">${escapeHtml(phrase)}</span>`).join("");
-          block.dataset.segmented = "1";
-        }
-        for (const element of block.querySelectorAll(".wave-seg")) {
-          particles.push({
-            element, docTop: 0, anchorX: 0,
-            x: 0, y: 0, vx: 0, vy: 0,
-            mass: .7 + Math.random() * .6,
-            fade: 1, cap: 1, loose: false,
-            heading: Math.random() * Math.PI * 2,
-            phase: Math.random() * Math.PI * 2,
-          });
-        }
-      }
-    }
-    measureParticles();
-  }
-
-  function measureParticles() {
-    for (const particle of particles) {
-      const rect = particle.element.getBoundingClientRect();
-      particle.docTop = rect.top + scrollY;
-      particle.anchorX = rect.left + rect.width / 2;
-    }
-  }
-
-  function splat(x, y, velX, velY) {
-    if (!u || reducedMotion) return;
-    const cx = x / CELL + .5;
-    const cy = y / CELL + .5;
-    const radius = 2.2;
-    for (let j = Math.max(1, Math.floor(cy - 3)); j <= Math.min(rows - 2, Math.ceil(cy + 3)); j += 1) {
-      for (let i = Math.max(1, Math.floor(cx - 3)); i <= Math.min(cols - 2, Math.ceil(cx + 3)); i += 1) {
-        const fall = Math.exp(-((i - cx) ** 2 + (j - cy) ** 2) / (radius * radius));
-        const index = j * cols + i;
-        u[index] = Math.max(-150, Math.min(150, u[index] + velX * fall));
-        v[index] = Math.max(-150, Math.min(150, v[index] + velY * fall));
-      }
-    }
-  }
-
-  function stepFluid(deltaTime) {
-    if (!u) return;
-    for (let pass = 0; pass < 2; pass += 1) {
-      u0.set(u);
-      v0.set(v);
-      for (let j = 1; j < rows - 1; j += 1) {
-        for (let i = 1; i < cols - 1; i += 1) {
-          const index = j * cols + i;
-          const averageU = (u0[index - 1] + u0[index + 1] + u0[index - cols] + u0[index + cols]) * .25;
-          const averageV = (v0[index - 1] + v0[index + 1] + v0[index - cols] + v0[index + cols]) * .25;
-          u[index] += (averageU - u0[index]) * .5;
-          v[index] += (averageV - v0[index]) * .5;
-        }
-      }
-    }
-    u0.set(u);
-    v0.set(v);
-    const decay = Math.exp(-1.5 * deltaTime);
-    for (let j = 1; j < rows - 1; j += 1) {
-      for (let i = 1; i < cols - 1; i += 1) {
-        const index = j * cols + i;
-        const backX = i - u0[index] * deltaTime / CELL;
-        const backY = j - v0[index] * deltaTime / CELL;
-        u[index] = sampleField(u0, backX, backY) * decay;
-        v[index] = sampleField(v0, backX, backY) * decay;
-      }
-    }
-  }
-
-  function sampleField(field, x, y) {
-    const cx = Math.max(0, Math.min(cols - 1.001, x));
-    const cy = Math.max(0, Math.min(rows - 1.001, y));
-    const i = Math.floor(cx);
-    const j = Math.floor(cy);
-    const fx = cx - i;
-    const fy = cy - j;
-    const index = j * cols + i;
+  function sample(field, x, y) {
+    const safeX = Math.max(0, Math.min(cols - 1.001, x));
+    const safeY = Math.max(0, Math.min(rows - 1.001, y));
+    const column = Math.floor(safeX);
+    const row = Math.floor(safeY);
+    const fx = safeX - column;
+    const fy = safeY - row;
+    const index = row * cols + column;
     return (field[index] * (1 - fx) + field[index + 1] * fx) * (1 - fy)
       + (field[index + cols] * (1 - fx) + field[index + cols + 1] * fx) * fy;
   }
 
-  function fluidVelocityAt(x, y) {
-    if (!u) return [0, 0];
-    return [sampleField(u, x / CELL + .5, y / CELL + .5), sampleField(v, x / CELL + .5, y / CELL + .5)];
+  function velocityAt(x, y) {
+    return [
+      sample(fieldX, x / CELL_SIZE + 1, y / CELL_SIZE + 1),
+      sample(fieldY, x / CELL_SIZE + 1, y / CELL_SIZE + 1),
+    ];
   }
 
-  function renderFluid() {
-    if (!fluidImage) return;
-    const visibility = .5 + ((depth - 1) / 6) * .5;
-    // 深い記事ほど、操作の乱れが校閲の赤（赤入れ）を帯びる
-    const redshift = Math.max(0, Math.min(1, (depth - 3) / 4));
-    const data = fluidImage.data;
-    let active = false;
-    for (let index = 0; index < cols * rows; index += 1) {
-      const speed = Math.hypot(u[index], v[index]);
-      const t = Math.min(1, speed / 130);
-      const eased = t * t * (3 - 2 * t);
-      const alpha = eased * .34 * visibility;
-      if (alpha > .004) active = true;
-      data[index * 4] = 12 + eased * (150 + redshift * 68);
-      data[index * 4 + 1] = 34 + eased * (148 - redshift * 96);
-      data[index * 4 + 2] = 32 + eased * (142 - redshift * 88);
-      data[index * 4 + 3] = alpha * 255;
-    }
-    if (!active) return;
-    fluidContext.putImageData(fluidImage, 0, 0);
-    output.imageSmoothingEnabled = true;
-    output.drawImage(fluidCanvas, -CELL, -CELL, cols * CELL, rows * CELL);
-  }
-
-  function addWake(y, vx, vy, radius = 180, life = 1) {
-    wakes.push({ y, vx, vy, radius, life, age: 0 });
-    if (wakes.length > 10) wakes.shift();
-  }
-
-  function sweep(particle, directionX, directionY) {
-    particle.loose = true;
-    particle.cap = Math.max(.28, particle.cap * .6);
-    particle.heading = Math.atan2(directionY, directionX) + (Math.random() - .5) * .8;
-    particle.vx += directionX * (14 + Math.random() * 20);
-    particle.vy += directionY * (30 + Math.random() * 42);
-    addDamage(.0008 + ((depth - 1) / 6) * .0012);
-  }
-
-  function updateParticles(deltaTime) {
-    if (!particles.length) return;
-    const state = getState();
-    const normalizedDepth = (depth - 1) / 6;
-    const springK = 40 - normalizedDepth * 31 - state.damage * 4;
-    const damping = Math.exp(-(6 - normalizedDepth * 3.2) * deltaTime);
-    const gain = (.12 + normalizedDepth * .95) * 8;
-    const fluidGain = gain * 1.1 + 1.8;
-    const sweepLimit = depth >= 4 ? 92 - normalizedDepth * 40 : Infinity;
-    const fadeFloor = Math.max(.1, .58 - normalizedDepth * .48);
-    for (const particle of particles) {
-      const viewY = particle.docTop - scrollY;
-      if (!particle.loose && (viewY < -160 || viewY > height + 160)) continue;
-      let forceX = 0;
-      let forceY = 0;
-      for (const wake of wakes) {
-        const distance = (viewY - wake.y) / wake.radius;
-        const influence = Math.exp(-distance * distance * 2.4) * Math.max(0, 1 - wake.age / wake.life);
-        forceX += wake.vx * influence;
-        forceY += wake.vy * influence;
+  function splat(x, y, velocityX, velocityY, radius = 2.7) {
+    if (paused || !fieldX) return;
+    const centerX = x / CELL_SIZE + 1;
+    const centerY = y / CELL_SIZE + 1;
+    const reach = Math.ceil(radius * 2);
+    for (let row = Math.max(1, Math.floor(centerY - reach)); row <= Math.min(rows - 2, Math.ceil(centerY + reach)); row += 1) {
+      for (let column = Math.max(1, Math.floor(centerX - reach)); column <= Math.min(cols - 2, Math.ceil(centerX + reach)); column += 1) {
+        const distance = (column - centerX) ** 2 + (row - centerY) ** 2;
+        const falloff = Math.exp(-distance / (radius * radius));
+        const index = row * cols + column;
+        fieldX[index] = Math.max(-520, Math.min(520, fieldX[index] + velocityX * falloff));
+        fieldY[index] = Math.max(-520, Math.min(520, fieldY[index] + velocityY * falloff));
       }
-      const fluid = fluidVelocityAt(particle.anchorX + particle.x, viewY + particle.y);
-      const restore = particle.loose ? 0 : springK;
-      particle.vx += ((forceX * gain + fluid[0] * fluidGain) * particle.mass - restore * particle.x) * deltaTime;
-      particle.vy += ((forceY * gain + fluid[1] * fluidGain) * particle.mass - restore * particle.y) * deltaTime;
-      if (particle.loose) {
-        particle.phase += deltaTime * (1.2 + particle.mass);
-        particle.heading += ((Math.random() - .5) * 3 + Math.sin(particle.phase) * .7) * deltaTime;
-        const thrust = (200 + particle.mass * 160) * deltaTime;
-        particle.vx += Math.cos(particle.heading) * thrust;
-        particle.vy += Math.sin(particle.heading) * thrust * .6;
-        const screenX = particle.anchorX + particle.x;
-        const screenY = viewY + particle.y;
-        const overflowX = screenX < 30 ? 30 - screenX : screenX > width - 30 ? width - 30 - screenX : 0;
-        const overflowY = screenY < 30 ? 30 - screenY : screenY > height - 30 ? height - 30 - screenY : 0;
-        if (overflowX || overflowY) {
-          particle.vx += Math.max(-150, Math.min(150, overflowX)) * 9 * deltaTime;
-          particle.vy += Math.max(-150, Math.min(150, overflowY)) * 9 * deltaTime;
-          const target = Math.atan2(height / 2 - screenY, width / 2 - screenX);
-          particle.heading += Math.atan2(Math.sin(target - particle.heading), Math.cos(target - particle.heading)) * 2.5 * deltaTime;
+    }
+  }
+
+  function stepField(deltaTime) {
+    nextX.set(fieldX);
+    nextY.set(fieldY);
+
+    for (let row = 1; row < rows - 1; row += 1) {
+      for (let column = 1; column < cols - 1; column += 1) {
+        const index = row * cols + column;
+        const averageX = (fieldX[index - 1] + fieldX[index + 1] + fieldX[index - cols] + fieldX[index + cols]) * 0.25;
+        const averageY = (fieldY[index - 1] + fieldY[index + 1] + fieldY[index - cols] + fieldY[index + cols]) * 0.25;
+        nextX[index] += (averageX - fieldX[index]) * 0.32;
+        nextY[index] += (averageY - fieldY[index]) * 0.32;
+      }
+    }
+
+    const decay = Math.exp(-1.28 * deltaTime);
+    for (let row = 1; row < rows - 1; row += 1) {
+      for (let column = 1; column < cols - 1; column += 1) {
+        const index = row * cols + column;
+        const backX = column - nextX[index] * deltaTime / CELL_SIZE;
+        const backY = row - nextY[index] * deltaTime / CELL_SIZE;
+        fieldX[index] = sample(nextX, backX, backY) * decay;
+        fieldY[index] = sample(nextY, backX, backY) * decay;
+      }
+    }
+  }
+
+  function renderField() {
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    if (paused) return;
+    context.save();
+    context.scale(ratio, ratio);
+    context.lineCap = "round";
+
+    for (let row = 1; row < rows - 1; row += 1) {
+      for (let column = 1; column < cols - 1; column += 1) {
+        const index = row * cols + column;
+        const velocityX = fieldX[index];
+        const velocityY = fieldY[index];
+        const speed = Math.hypot(velocityX, velocityY);
+        if (speed < 3.5) continue;
+        const x = (column - 1) * CELL_SIZE;
+        const y = (row - 1) * CELL_SIZE;
+        const length = Math.min(22, 4 + speed * 0.045);
+        const nx = velocityX / speed;
+        const ny = velocityY / speed;
+        const alpha = Math.min(0.22, 0.025 + speed / 1800);
+        context.strokeStyle = `rgba(20, 100, 132, ${alpha})`;
+        context.lineWidth = 0.7 + Math.min(1.5, speed / 180);
+        context.beginPath();
+        context.moveTo(x - nx * length, y - ny * length);
+        context.quadraticCurveTo(x, y, x + nx * length * 0.38 - ny * 2, y + ny * length * 0.38 + nx * 2);
+        context.stroke();
+      }
+    }
+    context.restore();
+  }
+
+  function updateParticles(deltaTime, now) {
+    let activeParticles = 0;
+    const damping = Math.exp(-6.4 * deltaTime);
+
+    for (const block of activeBlocks) {
+      if (!block.active) continue;
+      for (const particle of block.particles) {
+        const anchorX = particle.docX - scrollX;
+        const anchorY = particle.docY - scrollY;
+        const screenX = anchorX + particle.x;
+        const screenY = anchorY + particle.y;
+
+        // Two-stage culling: the paragraph must intersect the observer margin,
+        // and the individual segment must still be close to the viewport.
+        if (screenY < -OFFSCREEN_MARGIN || screenY > height + OFFSCREEN_MARGIN
+          || screenX < -OFFSCREEN_MARGIN || screenX > width + OFFSCREEN_MARGIN) continue;
+
+        activeParticles += 1;
+        const [fluidX, fluidY] = velocityAt(screenX, screenY);
+        const ambient = Math.sin(now * 0.00022 + particle.phase + anchorY * 0.004);
+        const spring = 14.5 / particle.mass;
+        particle.vx += (fluidX * 0.82 + ambient * 3.2 - particle.x * spring) * deltaTime;
+        particle.vy += (fluidY * 0.82 + Math.cos(particle.phase + now * 0.00018) * 1.2 - particle.y * spring) * deltaTime;
+        particle.vx *= damping;
+        particle.vy *= damping;
+        particle.x += particle.vx * deltaTime;
+        particle.y += particle.vy * deltaTime;
+
+        const distance = Math.hypot(particle.x, particle.y);
+        if (distance > MAX_OFFSET) {
+          const leash = MAX_OFFSET / distance;
+          particle.x *= leash;
+          particle.y *= leash;
+          particle.vx *= 0.48;
+          particle.vy *= 0.48;
+        }
+
+        const tilt = Math.max(-2.2, Math.min(2.2, particle.vx * 0.028));
+        if (Math.abs(particle.x) + Math.abs(particle.y) < 0.08) {
+          particle.element.style.transform = "";
+        } else {
+          particle.element.style.transform = `translate3d(${particle.x.toFixed(2)}px, ${particle.y.toFixed(2)}px, 0) rotate(${tilt.toFixed(2)}deg)`;
         }
       }
-      particle.vx *= damping;
-      particle.vy *= damping;
-      particle.x += particle.vx * deltaTime;
-      particle.y += particle.vy * deltaTime;
-
-      const offset = Math.hypot(particle.x, particle.y);
-      if (!particle.loose && offset * particle.mass > sweepLimit) {
-        sweep(particle, Math.sign(particle.vx || 1), Math.sign(particle.vy || 1));
-      }
-      if (particle.loose) {
-        particle.fade = Math.max(fadeFloor, particle.fade - deltaTime * .5);
-      } else if (particle.fade < particle.cap) {
-        particle.fade = Math.min(particle.cap, particle.fade + deltaTime * .02);
-      }
-
-      if (offset < .35 && particle.fade > .995 && !particle.element.style.transform) continue;
-      const tilt = Math.max(-4, Math.min(4, particle.vx * .045));
-      particle.element.style.transform = offset < .35
-        ? "" : `translate(${particle.x.toFixed(1)}px,${particle.y.toFixed(1)}px) rotate(${tilt.toFixed(2)}deg)`;
-      particle.element.style.opacity = particle.fade > .995 ? "" : particle.fade.toFixed(3);
     }
-  }
 
-  function clearObstacles() {
-    output.save();
-    output.globalCompositeOperation = "destination-out";
-    for (const element of document.querySelectorAll(".photo-frame, .evidence")) {
-      const rect = element.getBoundingClientRect();
-      if (rect.bottom < 0 || rect.top > height) continue;
-      output.fillRect(rect.left - 3, rect.top - 3, rect.width + 6, rect.height + 6);
+    if (now - activityAt > 350) {
+      activityAt = now;
+      onActivity({ active: activeParticles, total: knownSegments });
     }
-    output.restore();
   }
 
   function draw(now) {
-    if (now - lastFrame < 30) { raf = requestAnimationFrame(draw); return; }
-    const deltaTime = Math.min(.034, Math.max(.008, (now - lastFrame) / 1000));
+    animationFrame = requestAnimationFrame(draw);
+    if (now - lastFrame < 1000 / FIELD_FPS) return;
+    const deltaTime = Math.min(0.045, Math.max(0.008, (now - lastFrame) / 1000));
     lastFrame = now;
-    for (const wake of wakes) wake.age += deltaTime;
-    while (wakes.length && wakes[0].age >= wakes[0].life) wakes.shift();
-    if (!reducedMotion) stepFluid(deltaTime);
-    updateParticles(deltaTime);
-
-    output.setTransform(1, 0, 0, 1, 0, 0);
-    output.clearRect(0, 0, canvas.width, canvas.height);
-    output.save();
-    output.scale(ratio, ratio);
-    renderFluid();
-    clearObstacles();
-    output.restore();
-    raf = requestAnimationFrame(draw);
-  }
-
-  function onScroll() {
-    const now = performance.now();
-    const delta = scrollY - lastScroll;
-    const elapsed = Math.max(16, now - lastScrollTime);
-    const speed = Math.min(1, Math.abs(delta) / elapsed / 2);
-    if (Math.abs(delta) > 1) {
-      addWake(height * (.42 + Math.random() * .18), (depth % 2 ? 1 : -1) * speed * 14, -Math.sign(delta) * speed * 78, 230, .75);
-      addDamage((.00012 + speed * .0014) * (1 + (depth - 1) * .18));
+    if (!paused) {
+      stepField(deltaTime);
+      updateParticles(deltaTime, now);
     }
-    lastScroll = scrollY;
-    lastScrollTime = now;
+    renderField();
   }
 
   function onPointerMove(event) {
-    if (reducedMotion) return;
-    if (!pointer) { pointer = { x: event.clientX, y: event.clientY }; return; }
+    if (paused || event.pointerType === "touch") return;
+    const now = event.timeStamp || performance.now();
+    if (!pointer) {
+      pointer = { x: event.clientX, y: event.clientY, at: now };
+      return;
+    }
+    const elapsed = Math.max(8, now - pointer.at);
     const dx = event.clientX - pointer.x;
     const dy = event.clientY - pointer.y;
-    pointer = { x: event.clientX, y: event.clientY };
-    if (!dx && !dy) return;
-    splat(event.clientX, event.clientY, dx * 6, dy * 6);
+    pointer = { x: event.clientX, y: event.clientY, at: now };
+    if (Math.abs(dx) + Math.abs(dy) < 0.5) return;
+    splat(event.clientX, event.clientY, dx / elapsed * 105, dy / elapsed * 105, 2.5);
   }
 
-  function onClick(event) {
-    if (event.target.closest("dialog, .masthead")) return;
-    const normalizedDepth = (depth - 1) / 6;
-    addWake(event.clientY, (event.clientX < width / 2 ? -1 : 1) * 24, 8, 110, .65);
-    splat(event.clientX, event.clientY, (event.clientX < width / 2 ? -1 : 1) * 60, 45);
-    if (depth >= 5) {
-      for (const particle of particles) {
-        const viewY = particle.docTop - scrollY;
-        if (particle.loose || Math.hypot(particle.anchorX - event.clientX, viewY - event.clientY) > 70) continue;
-        if (Math.random() < .5) sweep(particle, event.clientX < width / 2 ? -1 : 1, 1);
+  function onPointerDown(event) {
+    const direction = event.clientX < width / 2 ? -1 : 1;
+    splat(event.clientX, event.clientY, direction * 95, 28, 3.2);
+  }
+
+  function onScroll() {
+    if (paused) return;
+    const now = performance.now();
+    const delta = scrollY - lastScroll;
+    const elapsed = Math.max(14, now - lastScrollAt);
+    const velocity = Math.max(-900, Math.min(900, delta / elapsed * 1000));
+    lastScroll = scrollY;
+    lastScrollAt = now;
+    if (Math.abs(velocity) < 12) return;
+
+    const y = height * 0.5;
+    for (let index = 0; index < 4; index += 1) {
+      const x = width * (0.14 + index * 0.24);
+      const crossCurrent = Math.sin(scrollY * 0.003 + index * 1.7) * Math.abs(velocity) * 0.075;
+      splat(x, y + (index % 2 ? 48 : -48), crossCurrent, -velocity * 0.21, 3.4);
+    }
+  }
+
+  function resetParticles() {
+    for (const block of blockByRoot.values()) {
+      for (const particle of block.particles) {
+        particle.x = 0;
+        particle.y = 0;
+        particle.vx = 0;
+        particle.vy = 0;
+        particle.element.style.transform = "";
       }
     }
-    addDamage(.001 + normalizedDepth * .0015);
   }
 
-  function refresh(nextDepth) {
-    depth = nextDepth;
-    document.body.dataset.depth = String(depth);
-    syncVariables();
-    requestAnimationFrame(segmentArticle);
-  }
-
-  function reset() {
-    wakes.length = 0;
-    if (u) { u.fill(0); v.fill(0); }
-    for (const particle of particles) {
-      Object.assign(particle, { x: 0, y: 0, vx: 0, vy: 0, fade: 1, cap: 1, loose: false });
-      particle.element.style.transform = "";
-      particle.element.style.opacity = "";
+  function setPaused(nextPaused) {
+    paused = Boolean(nextPaused || reducedMotion);
+    document.documentElement.classList.toggle("motion-paused", paused);
+    if (paused) {
+      fieldX?.fill(0);
+      fieldY?.fill(0);
+      resetParticles();
+      renderField();
+      onActivity({ active: 0, total: knownSegments });
     }
-    syncVariables();
+    return paused;
   }
 
-  addEventListener("resize", resize, { passive: true });
-  addEventListener("scroll", onScroll, { passive: true });
-  addEventListener("pointermove", onPointerMove, { passive: true });
-  addEventListener("click", onClick, { passive: true });
-  if (document.fonts?.ready) document.fonts.ready.then(measureParticles);
-  resize();
-  raf = requestAnimationFrame(draw);
+  function togglePaused() {
+    return setPaused(!paused);
+  }
 
-  return { refresh, reset, destroy() { cancelAnimationFrame(raf); canvas.remove(); } };
+  function onResize() {
+    if (resizeFrame) cancelAnimationFrame(resizeFrame);
+    resizeFrame = requestAnimationFrame(() => {
+      resizeFrame = 0;
+      resize();
+    });
+  }
+
+  addEventListener("pointermove", onPointerMove, { passive: true });
+  addEventListener("pointerdown", onPointerDown, { passive: true });
+  addEventListener("pointerout", () => { pointer = null; }, { passive: true });
+  addEventListener("scroll", onScroll, { passive: true });
+  addEventListener("resize", onResize, { passive: true });
+
+  resize();
+  setPaused(paused);
+  animationFrame = requestAnimationFrame(draw);
+
+  return {
+    measure,
+    setPaused,
+    togglePaused,
+    destroy() {
+      cancelAnimationFrame(animationFrame);
+      observer.disconnect();
+      canvas.remove();
+      removeEventListener("pointermove", onPointerMove);
+      removeEventListener("pointerdown", onPointerDown);
+      removeEventListener("scroll", onScroll);
+      removeEventListener("resize", onResize);
+    },
+  };
 }

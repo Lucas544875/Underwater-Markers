@@ -3,38 +3,37 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#f1f3f0" />
-    <meta name="description" content="台風の夜、ダム放流を伝えた一本の記事をめぐる検証報道アーカイブ" />
-    <title>北嶺日報 | 検証・夜見沢放流事故</title>
+    <meta name="theme-color" content="#e9e3d3" />
+    <meta
+      name="description"
+      content="カーソルとスクロールが潮流を生み、言葉が漂う『老人と海』の一枚読み。石波杏訳・CC BY 2.1 JP。"
+    />
+    <title>老人と海｜潮の記憶</title>
   </head>
   <body>
-    <header class="masthead">
-      <a class="brand" href="#article-1" aria-label="北嶺日報 トップ">
-        <span class="brand-mark">北嶺</span><span>日報</span>
+    <header class="reader-bar" aria-label="読書ナビゲーション">
+      <a class="reader-brand" href="#top" aria-label="ページの先頭へ">
+        <span class="reader-brand-mark" aria-hidden="true">潮</span>
+        <span>潮の記憶</span>
       </a>
-      <div class="edition">検証特設ページ　夜見沢放流事故</div>
-      <nav aria-label="記事操作">
-        <button class="icon-button" id="records-button" type="button" aria-expanded="false" aria-controls="records-panel" title="記録一覧">
-          <span aria-hidden="true">☷</span><span class="button-label">記録</span>
-        </button>
-        <button class="icon-button" id="reset-button" type="button" title="記録を初期化">
-          <span aria-hidden="true">↺</span><span class="button-label">初期化</span>
-        </button>
-      </nav>
+      <div class="reader-position" aria-live="polite">
+        <span id="reader-phase">岸辺</span>
+        <strong id="reader-percent">0%</strong>
+      </div>
+      <div class="reader-progress" aria-hidden="true"><i id="reader-progress-fill"></i></div>
+      <button class="motion-toggle" id="motion-toggle" type="button" aria-pressed="false">
+        <span class="motion-dot" aria-hidden="true"></span>
+        <span id="motion-label">潮流を止める</span>
+      </button>
     </header>
-    <aside id="records-panel" class="records-panel" hidden aria-label="閲覧記録"></aside>
-    <main id="app" tabindex="-1"></main>
-    <dialog id="reset-dialog">
-      <form method="dialog">
-        <p class="dialog-kicker">検証特設ページ</p>
-        <h2>閲覧記録を初期化しますか</h2>
-        <p>既読記事と、あなたの閲覧が記録に残した損傷がすべて失われます。</p>
-        <div class="dialog-actions">
-          <button value="cancel">キャンセル</button>
-          <button class="danger" id="confirm-reset" value="confirm">初期化</button>
-        </div>
-      </form>
-    </dialog>
+
+    <main id="app"></main>
+
+    <div class="segment-meter" id="segment-meter" aria-hidden="true">
+      <span>FLUID FIELD</span>
+      <b id="active-segments">0</b>
+      <small>VISIBLE SEGMENTS</small>
+    </div>
     <script type="module" src="/src/app.js"></script>
   </body>
 </html>
