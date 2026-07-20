@@ -3,10 +3,11 @@ import { Parser, jaModel } from "budoux";
 const CELL_SIZE = 42;
 const FIELD_FPS = 32;
 const DETACH_DISTANCE = 54;
-const DEFAULT_MAX_FIELD_VELOCITY = 520;
-const POINTER_MAX_FIELD_VELOCITY = 1400;
-const POINTER_FORCE = 520;
-const POINTER_RADIUS = 1.45;
+const DEFAULT_MAX_FIELD_VELOCITY =  3000;
+const POINTER_MAX_FIELD_VELOCITY = 2000;
+const POINTER_FORCE = 1000;
+const POINTER_RADIUS = 0.8;
+const POINTER_SPLAT_SPACING = CELL_SIZE * POINTER_RADIUS * 0.5;
 const OFFSCREEN_MARGIN = 180;
 const SKIP_TAGS = new Set(["RT", "RP", "SCRIPT", "STYLE"]);
 const phraseParser = new Parser(jaModel);
@@ -168,6 +169,25 @@ export function createOceanField({ roots, onActivity = () => {} }) {
     }
   }
 
+  function splatPointerTrail(fromX, fromY, toX, toY, velocityX, velocityY) {
+    const dx = toX - fromX;
+    const dy = toY - fromY;
+    const distance = Math.hypot(dx, dy);
+    const steps = Math.max(1, Math.ceil(distance / POINTER_SPLAT_SPACING));
+
+    for (let step = 1; step <= steps; step += 1) {
+      const progress = step / steps;
+      splat(
+        fromX + dx * progress,
+        fromY + dy * progress,
+        velocityX,
+        velocityY,
+        POINTER_RADIUS,
+        POINTER_MAX_FIELD_VELOCITY,
+      );
+    }
+  }
+
   function stepField(deltaTime) {
     nextX.set(fieldX);
     nextY.set(fieldY);
@@ -177,8 +197,8 @@ export function createOceanField({ roots, onActivity = () => {} }) {
         const index = row * cols + column;
         const averageX = (fieldX[index - 1] + fieldX[index + 1] + fieldX[index - cols] + fieldX[index + cols]) * 0.25;
         const averageY = (fieldY[index - 1] + fieldY[index + 1] + fieldY[index - cols] + fieldY[index + cols]) * 0.25;
-        nextX[index] += (averageX - fieldX[index]) * 0.32;
-        nextY[index] += (averageY - fieldY[index]) * 0.32;
+        nextX[index] += (averageX - fieldX[index]) * 0.7;
+        nextY[index] += (averageY - fieldY[index]) * 0.7;
       }
     }
 
@@ -266,15 +286,17 @@ export function createOceanField({ roots, onActivity = () => {} }) {
     const elapsed = Math.max(8, now - pointer.at);
     const dx = event.clientX - pointer.x;
     const dy = event.clientY - pointer.y;
+    const previousX = pointer.x;
+    const previousY = pointer.y;
     pointer = { x: event.clientX, y: event.clientY, at: now };
     if (Math.abs(dx) + Math.abs(dy) < 0.5) return;
-    splat(
+    splatPointerTrail(
+      previousX,
+      previousY,
       event.clientX,
       event.clientY,
       dx / elapsed * POINTER_FORCE,
       dy / elapsed * POINTER_FORCE,
-      POINTER_RADIUS,
-      POINTER_MAX_FIELD_VELOCITY,
     );
   }
 
