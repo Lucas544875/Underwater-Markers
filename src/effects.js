@@ -7,7 +7,6 @@ const POINTER_FORCE = 520;
 const POINTER_RADIUS = 1.45;
 const OFFSCREEN_MARGIN = 180;
 const SKIP_TAGS = new Set(["RT", "RP", "SCRIPT", "STYLE"]);
-const PUNCTUATION = /[、。！？）」』】…―：；]/;
 
 export function createOceanField({ roots, onActivity = () => {} }) {
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -36,24 +35,10 @@ export function createOceanField({ roots, onActivity = () => {} }) {
   let knownSegments = 0;
   let activityAt = 0;
 
-  function splitPhrases(text) {
-    if (!text.trim()) return [text];
-    if (!segmenter) return text.match(/.{1,7}/gu) || [text];
-
-    const phrases = [];
-    let phrase = "";
-    for (const { segment } of segmenter.segment(text)) {
-      phrase += segment;
-      const compactLength = phrase.replace(/\s/g, "").length;
-      const shouldBreak = compactLength >= 9
-        || (compactLength >= 4 && PUNCTUATION.test(phrase.at(-1)));
-      if (shouldBreak) {
-        phrases.push(phrase);
-        phrase = "";
-      }
-    }
-    if (phrase) phrases.push(phrase);
-    return phrases;
+  function splitWords(text) {
+    if (!text.trim()) return [{ segment: text, isWordLike: false }];
+    if (!segmenter) return [{ segment: text, isWordLike: true }];
+    return [...segmenter.segment(text)];
   }
 
   function segmentRoot(root) {
@@ -73,14 +58,14 @@ export function createOceanField({ roots, onActivity = () => {} }) {
     const particles = [];
     for (const textNode of textNodes) {
       const fragment = document.createDocumentFragment();
-      for (const phrase of splitPhrases(textNode.nodeValue)) {
-        if (!phrase.trim()) {
-          fragment.append(document.createTextNode(phrase));
+      for (const { segment, isWordLike } of splitWords(textNode.nodeValue)) {
+        if (!isWordLike) {
+          fragment.append(document.createTextNode(segment));
           continue;
         }
         const element = document.createElement("span");
         element.className = "fluid-segment";
-        element.textContent = phrase;
+        element.textContent = segment;
         fragment.append(element);
         particles.push({
           element,
