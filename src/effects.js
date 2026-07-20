@@ -13,9 +13,9 @@ const CONFIG = {
   fluid: {
     diffusionPasses: 2,
     diffusionRate: 0.5,
-    decayPerSecond: 1.1, // 速度場が毎秒どれだけ弱まるか
+    decayPerSecond: 1.5, // 速度場が毎秒どれだけ弱まるか
     splatRadius: 1.5, // カーソル操作が流体場に及ぼす広がり(セル単位)
-    splatClamp: 170 // 流体場1セルあたりの速度上限
+    splatClamp: 2000 // 流体場1セルあたりの速度上限
   },
   shimmer: {
     speedNormalize: 70, // この速度で光の強さが最大に近づく
@@ -32,7 +32,7 @@ const CONFIG = {
     gainBase: 0.65, // 力の伝わりやすさの基準値
     gainSwell: 1.1, // シーンのswellが伝わりやすさに与える係数
     springK: 32, // 定位置へ戻る力の強さ（漂流中は0になる）
-    fluidTransfer: 4.5, // カーソル操作の流体場が文節へ伝わる強さ
+    fluidTransfer: 3.5, // カーソル操作の流体場が文節へ伝わる強さ
     dampingAnchored: 5.4, // 定位置にあるときの減衰
     dampingLoose: 2.4, // 漂流中の減衰（弱いほど揺れが長く残る）
     maxOffsetBase: 30, // 復元力を失うまでに許容される変位(px)の基準値
@@ -64,7 +64,9 @@ const CONFIG = {
     wakeLife: 0.9
   },
   pointer: {
-    splatMultiplier: 9 // カーソル移動量に対する力の強さ
+    splatMultiplier: 9, // カーソル移動量に対する力の強さ
+    stampSpacing: 16, // 経路上にsplatを打つ間隔(px)。速い移動ほど打つ回数が増える
+    maxStamps: 24 // 1回のpointermoveで打つsplatの最大数（大きなジャンプ対策）
   },
   click: {
     wakeVy: 26,
@@ -432,12 +434,23 @@ export function createSeaEffects() {
 
   function onPointerMove(event) {
     if (!pointer) { pointer = { x: event.clientX, y: event.clientY }; return; }
-    const dx = event.clientX - pointer.x;
-    const dy = event.clientY - pointer.y;
+    const prevX = pointer.x;
+    const prevY = pointer.y;
+    const dx = event.clientX - prevX;
+    const dy = event.clientY - prevY;
     pointer = { x: event.clientX, y: event.clientY };
     if (!dx && !dy) return;
-    const m = CONFIG.pointer.splatMultiplier;
-    splat(event.clientX, event.clientY, dx * m, dy * m);
+    const P = CONFIG.pointer;
+    const velX = dx * P.splatMultiplier;
+    const velY = dy * P.splatMultiplier;
+    // 前回位置から今回位置までの経路に沿って複数回splatを打ち、
+    // 速く動かすほど「触れた経路」と「力」の両方が伸びるようにする
+    const distance = Math.hypot(dx, dy);
+    const steps = Math.min(P.maxStamps, Math.max(1, Math.ceil(distance / P.stampSpacing)));
+    for (let i = 1; i <= steps; i += 1) {
+      const t = i / steps;
+      splat(prevX + dx * t, prevY + dy * t, velX, velY);
+    }
   }
 
   function onClick(event) {
