@@ -4,7 +4,7 @@ const DETACH_DISTANCE = 54;
 const DEFAULT_MAX_FIELD_VELOCITY = 520;
 const POINTER_MAX_FIELD_VELOCITY = 1400;
 const POINTER_FORCE = 520;
-const POINTER_RADIUS = 2.9;
+const POINTER_RADIUS = 1.45;
 const OFFSCREEN_MARGIN = 180;
 const SKIP_TAGS = new Set(["RT", "RP", "SCRIPT", "STYLE"]);
 const PUNCTUATION = /[、。！？）」』】…―：；]/;
@@ -294,7 +294,7 @@ export function createOceanField({ roots, onActivity = () => {} }) {
 
   function onPointerDown(event) {
     const direction = event.clientX < width / 2 ? -1 : 1;
-    splat(event.clientX, event.clientY, direction * 160, 48, 3.2, POINTER_MAX_FIELD_VELOCITY);
+    splat(event.clientX, event.clientY, direction * 160, 48, 1.6, POINTER_MAX_FIELD_VELOCITY);
   }
 
   function onScroll() {
