@@ -1,6 +1,10 @@
 const CELL_SIZE = 42;
 const FIELD_FPS = 32;
-const MAX_OFFSET = 54;
+const DETACH_DISTANCE = 54;
+const DEFAULT_MAX_FIELD_VELOCITY = 520;
+const POINTER_MAX_FIELD_VELOCITY = 1400;
+const POINTER_FORCE = 520;
+const POINTER_RADIUS = 2.9;
 const OFFSCREEN_MARGIN = 180;
 const SKIP_TAGS = new Set(["RT", "RP", "SCRIPT", "STYLE"]);
 const PUNCTUATION = /[、。！？）」』】…―：；]/;
@@ -86,6 +90,7 @@ export function createOceanField({ roots, onActivity = () => {} }) {
           y: 0,
           vx: 0,
           vy: 0,
+          detached: false,
           mass: 0.78 + Math.random() * 0.5,
           phase: Math.random() * Math.PI * 2,
         });
@@ -161,7 +166,7 @@ export function createOceanField({ roots, onActivity = () => {} }) {
     ];
   }
 
-  function splat(x, y, velocityX, velocityY, radius = 2.7) {
+  function splat(x, y, velocityX, velocityY, radius = 2.7, maxVelocity = DEFAULT_MAX_FIELD_VELOCITY) {
     if (paused || !fieldX) return;
     const centerX = x / CELL_SIZE + 1;
     const centerY = y / CELL_SIZE + 1;
@@ -171,8 +176,8 @@ export function createOceanField({ roots, onActivity = () => {} }) {
         const distance = (column - centerX) ** 2 + (row - centerY) ** 2;
         const falloff = Math.exp(-distance / (radius * radius));
         const index = row * cols + column;
-        fieldX[index] = Math.max(-520, Math.min(520, fieldX[index] + velocityX * falloff));
-        fieldY[index] = Math.max(-520, Math.min(520, fieldY[index] + velocityY * falloff));
+        fieldX[index] = Math.max(-maxVelocity, Math.min(maxVelocity, fieldX[index] + velocityX * falloff));
+        fieldY[index] = Math.max(-maxVelocity, Math.min(maxVelocity, fieldY[index] + velocityY * falloff));
       }
     }
   }
@@ -205,7 +210,6 @@ export function createOceanField({ roots, onActivity = () => {} }) {
 
   function updateParticles(deltaTime, now) {
     let activeParticles = 0;
-    const damping = Math.exp(-6.4 * deltaTime);
 
     for (const block of activeBlocks) {
       if (!block.active) continue;
@@ -223,21 +227,21 @@ export function createOceanField({ roots, onActivity = () => {} }) {
         activeParticles += 1;
         const [fluidX, fluidY] = velocityAt(screenX, screenY);
         const ambient = Math.sin(now * 0.00022 + particle.phase + anchorY * 0.004);
-        const spring = 14.5 / particle.mass;
-        particle.vx += (fluidX * 0.82 + ambient * 3.2 - particle.x * spring) * deltaTime;
-        particle.vy += (fluidY * 0.82 + Math.cos(particle.phase + now * 0.00018) * 1.2 - particle.y * spring) * deltaTime;
+        const spring = particle.detached ? 0 : 14.5 / particle.mass;
+        const damping = Math.exp(-(particle.detached ? 2.8 : 6.4) * deltaTime);
+        const fluidInfluence = particle.detached ? 0.12 : 1;
+        particle.vx += (fluidX * fluidInfluence + ambient * 3.2 - particle.x * spring) * deltaTime;
+        particle.vy += (fluidY * fluidInfluence + Math.cos(particle.phase + now * 0.00018) * 1.2 - particle.y * spring) * deltaTime;
         particle.vx *= damping;
         particle.vy *= damping;
         particle.x += particle.vx * deltaTime;
         particle.y += particle.vy * deltaTime;
 
         const distance = Math.hypot(particle.x, particle.y);
-        if (distance > MAX_OFFSET) {
-          const leash = MAX_OFFSET / distance;
-          particle.x *= leash;
-          particle.y *= leash;
-          particle.vx *= 0.48;
-          particle.vy *= 0.48;
+        if (!particle.detached && distance > DETACH_DISTANCE) {
+          particle.detached = true;
+          particle.vx *= 0.55;
+          particle.vy *= 0.55;
         }
 
         const tilt = Math.max(-2.2, Math.min(2.2, particle.vx * 0.028));
@@ -278,12 +282,19 @@ export function createOceanField({ roots, onActivity = () => {} }) {
     const dy = event.clientY - pointer.y;
     pointer = { x: event.clientX, y: event.clientY, at: now };
     if (Math.abs(dx) + Math.abs(dy) < 0.5) return;
-    splat(event.clientX, event.clientY, dx / elapsed * 105, dy / elapsed * 105, 2.5);
+    splat(
+      event.clientX,
+      event.clientY,
+      dx / elapsed * POINTER_FORCE,
+      dy / elapsed * POINTER_FORCE,
+      POINTER_RADIUS,
+      POINTER_MAX_FIELD_VELOCITY,
+    );
   }
 
   function onPointerDown(event) {
     const direction = event.clientX < width / 2 ? -1 : 1;
-    splat(event.clientX, event.clientY, direction * 95, 28, 3.2);
+    splat(event.clientX, event.clientY, direction * 160, 48, 3.2, POINTER_MAX_FIELD_VELOCITY);
   }
 
   function onScroll() {
@@ -311,6 +322,7 @@ export function createOceanField({ roots, onActivity = () => {} }) {
         particle.y = 0;
         particle.vx = 0;
         particle.vy = 0;
+        particle.detached = false;
         particle.element.style.transform = "";
       }
     }
