@@ -8,6 +8,7 @@ const motionButton = document.querySelector("#motion-toggle");
 const motionLabel = document.querySelector("#motion-label");
 const percentLabel = document.querySelector("#reader-percent");
 const progressFill = document.querySelector("#reader-progress-fill");
+const activeSegments = document.querySelector("#active-segments");
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 app.innerHTML = `
@@ -23,7 +24,6 @@ app.innerHTML = `
         <p class="opening-byline">${book.author}<small>${book.authorLatin}</small></p>
       </div>
       <div class="opening-bottom">
-        <p class="opening-copy"></p>
         <a class="begin-reading" href="#book-start"><span>読みはじめる</span><i aria-hidden="true">↓</i></a>
       </div>
     </div>
@@ -58,7 +58,7 @@ app.innerHTML = `
         <a href="${book.licenseUrl}" target="_blank" rel="license noreferrer">${book.licenseLabel}</a>の条件に従って掲載しています。
         このライセンスは、本サイトのその他のコンテンツには適用されません。
       </p>
-      <p class="adaptation-note">
+      <p>
         本サイトでは、元のテキストから本文以外の部分を削除し、本文を数文字程度のオブジェクト単位に分割して動的に配置しています。
         翻訳内容そのものの改変は行っていません。
       </p>
@@ -103,8 +103,7 @@ function scheduleRubyAlignment() {
 const ocean = createOceanField({
   roots: document.querySelectorAll("[data-fluid-text]"),
   onActivity({ moved, active }) {
-    const meter = document.querySelector("#active-segments");
-    if (meter) meter.textContent = `${moved} / ${active}`;
+    activeSegments.textContent = `${moved} / ${active}`;
   },
 });
 

@@ -147,8 +147,6 @@ button { font: inherit; }
   outline-offset: 5px;
 }
 
-.motion-toggle[aria-pressed="true"] .motion-dot { background: transparent; }
-
 #app { position: relative; z-index: 2; }
 
 .opening {
@@ -270,19 +268,12 @@ button { font: inherit; }
 .opening-bottom {
   display: flex;
   align-items: end;
-  justify-content: space-between;
   gap: 30px;
-}
-
-.opening-copy {
-  margin: 0;
-  font-size: clamp(14px, 1.4vw, 17px);
-  line-height: 2;
-  letter-spacing: 0.08em;
 }
 
 .begin-reading {
   width: min(270px, 32vw);
+  margin-left: auto;
   padding: 14px 0;
   display: flex;
   justify-content: space-between;
@@ -342,7 +333,6 @@ button { font: inherit; }
   letter-spacing: 0.045em;
   text-align: justify;
   text-justify: inter-ideograph;
-  counter-reset: current-page;
 }
 
 .book-paragraph {
@@ -506,9 +496,7 @@ ruby > rp { display: none; }
 
 @media (max-width: 390px) {
   .motion-toggle { min-width: 0; }
-  #motion-label { display: none; }
   .opening-overline span:last-child { display: none; }
-  .opening-copy { font-size: 13px; }
   .book-shell { padding-inline: 16px; }
   .book-copy { font-size: 15px; }
   .segment-meter { display: none; }

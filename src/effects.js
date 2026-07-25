@@ -21,7 +21,6 @@ const phraseParser = new Parser(jaModel);
 
 export function createOceanField({ roots, onActivity = () => {} }) {
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const rootList = [...roots];
   const blockByRoot = new Map();
   const activeBlocks = new Set();
 
@@ -106,7 +105,7 @@ export function createOceanField({ roots, onActivity = () => {} }) {
       addParticle(ruby);
     }
 
-    const block = { root, particles, active: false };
+    const block = { root, particles };
     blockByRoot.set(root, block);
     measureBlock(block);
     return block;
@@ -128,7 +127,6 @@ export function createOceanField({ roots, onActivity = () => {} }) {
     for (const entry of entries) {
       const block = entry.isIntersecting ? segmentRoot(entry.target) : blockByRoot.get(entry.target);
       if (!block) continue;
-      block.active = entry.isIntersecting;
       block.root.classList.toggle("fluid-active", entry.isIntersecting);
       if (entry.isIntersecting) {
         activeBlocks.add(block);
@@ -139,7 +137,7 @@ export function createOceanField({ roots, onActivity = () => {} }) {
     }
   }, { rootMargin: `${OFFSCREEN_MARGIN}px 0px`, threshold: 0 });
 
-  for (const root of rootList) observer.observe(root);
+  for (const root of roots) observer.observe(root);
 
   function resize() {
     width = innerWidth;
@@ -237,7 +235,7 @@ export function createOceanField({ roots, onActivity = () => {} }) {
   function applyClickFlow(deltaTime, now) {
     if (!clickFlow) return;
     const elapsed = now - clickFlow.startedAt;
-    if (elapsed < 0 || elapsed >= CLICK_FLOW_DURATION) {
+    if (elapsed >= CLICK_FLOW_DURATION) {
       clickFlow = null;
       return;
     }
@@ -273,7 +271,6 @@ export function createOceanField({ roots, onActivity = () => {} }) {
     let movedParticles = 0;
 
     for (const block of activeBlocks) {
-      if (!block.active) continue;
       for (const particle of block.particles) {
         const anchorX = particle.docX - scrollX;
         const anchorY = particle.docY - scrollY;
@@ -322,15 +319,15 @@ export function createOceanField({ roots, onActivity = () => {} }) {
   }
 
   function draw(now) {
+    animationFrame = 0;
+    if (paused) return;
     animationFrame = requestAnimationFrame(draw);
     if (now - lastFrame < 1000 / FIELD_FPS) return;
     const deltaTime = Math.min(0.045, Math.max(0.008, (now - lastFrame) / 1000));
     lastFrame = now;
-    if (!paused) {
-      stepField(deltaTime);
-      applyClickFlow(deltaTime, now);
-      updateParticles(deltaTime, now);
-    }
+    stepField(deltaTime);
+    applyClickFlow(deltaTime, now);
+    updateParticles(deltaTime, now);
   }
 
   function onPointerMove(event) {
@@ -401,11 +398,16 @@ export function createOceanField({ roots, onActivity = () => {} }) {
     paused = Boolean(nextPaused || reducedMotion);
     document.documentElement.classList.toggle("motion-paused", paused);
     if (paused) {
+      cancelAnimationFrame(animationFrame);
+      animationFrame = 0;
       clickFlow = null;
       fieldX?.fill(0);
       fieldY?.fill(0);
       resetParticles();
       onActivity({ moved: 0, active: 0 });
+    } else if (!animationFrame) {
+      lastFrame = performance.now();
+      animationFrame = requestAnimationFrame(draw);
     }
     return paused;
   }
@@ -430,19 +432,9 @@ export function createOceanField({ roots, onActivity = () => {} }) {
 
   resize();
   setPaused(paused);
-  animationFrame = requestAnimationFrame(draw);
 
   return {
     measure,
-    setPaused,
     togglePaused,
-    destroy() {
-      cancelAnimationFrame(animationFrame);
-      observer.disconnect();
-      removeEventListener("pointermove", onPointerMove);
-      removeEventListener("pointerdown", onPointerDown);
-      removeEventListener("scroll", onScroll);
-      removeEventListener("resize", onResize);
-    },
   };
 }
