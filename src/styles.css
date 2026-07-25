@@ -1,13 +1,11 @@
 :root {
   --paper: #ebe5d6;
   --paper-light: #f5f0e4;
-  --paper-deep: #d9d1bc;
   --ink: #173a49;
   --ink-soft: #55717b;
   --blue: #176f91;
   --blue-dark: #0c425a;
   --sun: #dd754e;
-  --line: rgba(23, 58, 73, 0.2);
   --serif: "Yu Mincho", "Hiragino Mincho ProN", "Noto Serif JP", serif;
   --sans: "Avenir Next", "Helvetica Neue", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
   color-scheme: light;
@@ -307,31 +305,15 @@ button { font: inherit; }
 
 .begin-reading i { font-style: normal; font-size: 15px; }
 
-.opening-instruction {
-  position: absolute;
-  right: 0;
-  top: 48%;
-  margin: 0;
-  writing-mode: vertical-rl;
-  color: rgba(245, 240, 228, 0.65);
-  font: 8px/1.8 var(--sans);
-  letter-spacing: 0.16em;
-}
-
-.opening-instruction span { margin-bottom: 8px; font-size: 17px; }
-
 .book-shell {
   position: relative;
   padding: clamp(85px, 12vw, 170px) 24px 180px;
-  background:
-    linear-gradient(90deg, transparent calc(50% - 370px), rgba(23, 58, 73, 0.09) calc(50% - 369px), transparent calc(50% - 368px)),
-    linear-gradient(90deg, transparent calc(50% + 368px), rgba(23, 58, 73, 0.09) calc(50% + 369px), transparent calc(50% + 370px));
 }
 
 .text-frontispiece {
   max-width: 740px;
-  min-height: 62vh;
-  margin: 0 auto clamp(100px, 17vw, 230px);
+  min-height: clamp(440px, 52vh, 560px);
+  margin: 0 auto clamp(80px, 12vw, 170px);
   padding: 42px 0;
   display: flex;
   flex-direction: column;
@@ -341,15 +323,8 @@ button { font: inherit; }
   border-bottom: 1px solid var(--ink);
 }
 
-.text-frontispiece > p {
-  margin: 0;
-  color: var(--ink-soft);
-  font: 9px/1 var(--sans);
-  letter-spacing: 0.26em;
-}
-
 .text-frontispiece h2 {
-  margin: 40px 0 38px;
+  margin: 0 0 30px;
   font-size: clamp(48px, 8vw, 84px);
   font-weight: 400;
   letter-spacing: 0.13em;
@@ -367,31 +342,6 @@ button { font: inherit; }
 .text-frontispiece dl div { display: grid; grid-template-columns: 70px 1fr; }
 .text-frontispiece dt { color: var(--ink-soft); font: 9px/1.8 var(--sans); letter-spacing: 0.16em; }
 .text-frontispiece dd { margin: 0; text-align: left; letter-spacing: 0.08em; }
-
-.current-key {
-  margin-top: 60px;
-  display: flex;
-  justify-content: center;
-  gap: 26px;
-  color: var(--ink-soft);
-  font: 8px/1 var(--sans);
-  letter-spacing: 0.1em;
-}
-
-.current-key span { display: flex; align-items: center; gap: 7px; }
-.key-pointer, .key-scroll { display: inline-block; width: 22px; height: 12px; position: relative; }
-.key-pointer::before { content: ""; position: absolute; inset: 5px 0 auto; border-top: 1px solid var(--blue); transform: rotate(-12deg); }
-.key-pointer::after { content: ""; position: absolute; right: 0; top: 2px; width: 5px; height: 5px; border: 1px solid var(--blue); border-radius: 50%; }
-.key-scroll { border-left: 1px solid var(--blue); border-right: 1px solid var(--blue); }
-.key-scroll::before { content: ""; position: absolute; inset: 5px -3px auto; border-top: 1px solid var(--blue); }
-
-.text-frontispiece .edition-note {
-  max-width: 430px;
-  margin: 44px auto 0;
-  color: rgba(23, 58, 73, 0.56);
-  font: 9px/1.8 var(--sans);
-  letter-spacing: 0.03em;
-}
 
 .book-copy {
   max-width: 680px;
@@ -441,44 +391,6 @@ rt { color: var(--ink-soft); font-size: 0.52em; letter-spacing: 0; }
 
 .fluid-active .fluid-segment { will-change: transform; }
 ruby .fluid-segment { display: inline; }
-
-.page-break {
-  width: 100%;
-  height: 190px;
-  margin: 90px 0;
-  display: grid;
-  place-items: center;
-  border: 0;
-  background:
-    linear-gradient(var(--line), var(--line)) center / 100% 1px no-repeat,
-    radial-gradient(circle, var(--paper) 0 7px, var(--blue) 8px 9px, var(--paper) 10px 18px, transparent 19px) center / 44px 44px no-repeat;
-}
-
-.appendix-title {
-  margin: 0 0 70px;
-  padding: 25px 0;
-  border-top: 1px solid var(--ink);
-  border-bottom: 1px solid var(--ink);
-  font-size: 24px;
-  font-weight: 400;
-  text-align: center;
-  letter-spacing: 0.18em;
-}
-
-.signature {
-  margin: 30px 0 70px;
-  color: var(--ink-soft);
-  text-align: right;
-  font-size: 13px;
-}
-
-#midashi20 ~ .book-paragraph {
-  margin-bottom: 0.72em;
-  font-size: 12px;
-  line-height: 1.9;
-  text-align: left;
-  letter-spacing: 0.02em;
-}
 
 .colophon {
   position: relative;
@@ -569,15 +481,11 @@ ruby .fluid-segment { display: inline; }
   .opening h1 { font-size: clamp(68px, 21vw, 96px); white-space: nowrap; }
   .opening-bottom { align-items: start; flex-direction: column; }
   .begin-reading { width: 100%; }
-  .opening-instruction { display: none; }
-  .book-shell { padding-inline: 20px; background: none; }
-  .text-frontispiece { min-height: 72vh; }
+  .book-shell { padding-inline: 20px; }
   .text-frontispiece h2 { font-size: 48px; }
-  .current-key { flex-direction: column; align-items: center; gap: 13px; }
   .book-copy { font-size: 16px; line-height: 2.18; }
   .book-paragraph { margin-bottom: 1.62em; }
   .book-paragraph:nth-of-type(75n)::before { right: auto; left: -13px; top: -8px; }
-  .page-break { height: 130px; margin-block: 65px; }
   .colophon { min-height: 100svh; grid-template-columns: 1fr; gap: 40px; }
   .colophon-number { font-size: 42vw; }
   .colophon-links { grid-template-columns: 1fr; }
