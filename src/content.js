@@ -13,12 +13,3 @@ export const book = {
   translationPublished: "2015年7月1日公開・同年9月29日最終更新",
 };
 
-export const readingPhases = [
-  { at: 0, label: "岸辺" },
-  { at: 0.08, label: "出帆" },
-  { at: 0.24, label: "沖へ" },
-  { at: 0.43, label: "大魚" },
-  { at: 0.64, label: "帰路" },
-  { at: 0.84, label: "陸の灯" },
-  { at: 0.96, label: "余白" },
-];
