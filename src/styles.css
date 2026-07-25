@@ -404,7 +404,6 @@ ruby > rp { display: none; }
 }
 
 .fluid-active .fluid-segment { will-change: transform; }
-ruby .fluid-segment { display: inline; }
 
 .colophon {
   position: relative;

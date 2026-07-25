@@ -50,7 +50,9 @@ export function createOceanField({ roots, onActivity = () => {} }) {
     const textNodes = [];
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
       acceptNode(node) {
-        if (!node.nodeValue?.trim() || SKIP_TAGS.has(node.parentElement?.tagName)) {
+        if (!node.nodeValue?.trim()
+          || SKIP_TAGS.has(node.parentElement?.tagName)
+          || node.parentElement?.closest("ruby")) {
           return NodeFilter.FILTER_REJECT;
         }
         return NodeFilter.FILTER_ACCEPT;
@@ -59,6 +61,21 @@ export function createOceanField({ roots, onActivity = () => {} }) {
     while (walker.nextNode()) textNodes.push(walker.currentNode);
 
     const particles = [];
+    function addParticle(element) {
+      particles.push({
+        element,
+        docX: 0,
+        docY: 0,
+        x: 0,
+        y: 0,
+        vx: 0,
+        vy: 0,
+        detached: false,
+        mass: 0.78 + Math.random() * 0.5,
+        phase: Math.random() * Math.PI * 2,
+      });
+    }
+
     for (const textNode of textNodes) {
       const fragment = document.createDocumentFragment();
       const phrases = root.hasAttribute("data-fluid-whole")
@@ -73,20 +90,14 @@ export function createOceanField({ roots, onActivity = () => {} }) {
         element.className = "fluid-segment";
         element.textContent = phrase;
         fragment.append(element);
-        particles.push({
-          element,
-          docX: 0,
-          docY: 0,
-          x: 0,
-          y: 0,
-          vx: 0,
-          vy: 0,
-          detached: false,
-          mass: 0.78 + Math.random() * 0.5,
-          phase: Math.random() * Math.PI * 2,
-        });
+        addParticle(element);
       }
       textNode.replaceWith(fragment);
+    }
+
+    for (const ruby of root.querySelectorAll("ruby")) {
+      ruby.classList.add("fluid-segment");
+      addParticle(ruby);
     }
 
     const block = { root, particles, active: false };
