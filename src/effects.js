@@ -10,6 +10,7 @@ const POINTER_RADIUS = 0.8;
 const POINTER_SPLAT_SPACING = CELL_SIZE * POINTER_RADIUS * 0.5;
 const SCROLL_FORCE = 0.3;
 const OFFSCREEN_MARGIN = 180;
+const MOVED_DISTANCE = 1;
 const SKIP_TAGS = new Set(["RT", "RP", "SCRIPT", "STYLE"]);
 const phraseParser = new Parser(jaModel);
 
@@ -34,7 +35,6 @@ export function createOceanField({ roots, onActivity = () => {} }) {
   let lastScroll = scrollY;
   let lastScrollAt = performance.now();
   let pointer = null;
-  let knownSegments = 0;
   let activityAt = 0;
 
   function splitPhrases(text) {
@@ -91,7 +91,6 @@ export function createOceanField({ roots, onActivity = () => {} }) {
 
     const block = { root, particles, active: false };
     blockByRoot.set(root, block);
-    knownSegments += particles.length;
     measureBlock(block);
     return block;
   }
@@ -220,6 +219,7 @@ export function createOceanField({ roots, onActivity = () => {} }) {
 
   function updateParticles(deltaTime, now) {
     let activeParticles = 0;
+    let movedParticles = 0;
 
     for (const block of activeBlocks) {
       if (!block.active) continue;
@@ -248,6 +248,7 @@ export function createOceanField({ roots, onActivity = () => {} }) {
         particle.y += particle.vy * deltaTime;
 
         const distance = Math.hypot(particle.x, particle.y);
+        if (distance >= MOVED_DISTANCE) movedParticles += 1;
         if (!particle.detached && distance > DETACH_DISTANCE) {
           particle.detached = true;
           particle.vx *= 0.55;
@@ -265,7 +266,7 @@ export function createOceanField({ roots, onActivity = () => {} }) {
 
     if (now - activityAt > 350) {
       activityAt = now;
-      onActivity({ active: activeParticles, total: knownSegments });
+      onActivity({ moved: movedParticles, active: activeParticles });
     }
   }
 
@@ -347,7 +348,7 @@ export function createOceanField({ roots, onActivity = () => {} }) {
       fieldX?.fill(0);
       fieldY?.fill(0);
       resetParticles();
-      onActivity({ active: 0, total: knownSegments });
+      onActivity({ moved: 0, active: 0 });
     }
     return paused;
   }

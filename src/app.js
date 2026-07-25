@@ -72,9 +72,9 @@ app.innerHTML = `
 
 const ocean = createOceanField({
   roots: document.querySelectorAll("[data-fluid-text]"),
-  onActivity({ active, total }) {
+  onActivity({ moved, active }) {
     const meter = document.querySelector("#active-segments");
-    if (meter) meter.textContent = `${active} / ${total}`;
+    if (meter) meter.textContent = `${moved} / ${active}`;
   },
 });
 
