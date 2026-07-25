@@ -54,12 +54,12 @@ app.innerHTML = `
         ${book.author} 著 ／ ${book.translator} 訳
       </p>
       <p>
-        翻訳文は<a href="${book.sourceUrl}" target="_blank" rel="noreferrer">青空文庫 No.57347 収録ファイル</a>を利用し、
-        <a href="${book.licenseUrl}" target="_blank" rel="license noreferrer">${book.licenseLabel}</a>のもとで掲載しています。
-        ${book.translationPublished}。
+        本サイトの翻訳文には<a href="${book.sourceUrl}" target="_blank" rel="noreferrer">青空文庫 No.57347 収録</a>のテキストを利用しています。当該翻訳文は、元ファイルに適用される
+        <a href="${book.licenseUrl}" target="_blank" rel="license noreferrer">${book.licenseLabel}</a>の条件に従って掲載しています。
+        このライセンスは、本サイトのその他のコンテンツには適用されません。
       </p>
       <p class="adaptation-note">
-        本サイトでは、公式XHTMLのルビを保持したまま改ページ注記を区切りへ変換し、本文を段落化・分節化して動的に配置しています。
+        本サイトでは、元のテキストから本文以外の部分を削除し、本文を数文字程度のオブジェクト単位に分割して動的に配置しています。
         翻訳内容そのものの改変は行っていません。
       </p>
       <div class="colophon-links">
