@@ -9,6 +9,11 @@ const POINTER_FORCE = 1000;
 const POINTER_RADIUS = 0.8;
 const POINTER_SPLAT_SPACING = CELL_SIZE * POINTER_RADIUS * 0.5;
 const SCROLL_FORCE = 0.3;
+const CLICK_FLOW_DURATION = 500;
+const CLICK_FLOW_RADIUS_RATIO = 0.25;
+const CLICK_FLOW_ACCELERATION = 20000;
+const CLICK_FLOW_MAX_VELOCITY = 520;
+const INTERACTIVE_SELECTOR = "a, button, input, select, textarea, [role='button']";
 const OFFSCREEN_MARGIN = 180;
 const MOVED_DISTANCE = 1;
 const SKIP_TAGS = new Set(["RT", "RP", "SCRIPT", "STYLE"]);
@@ -36,6 +41,7 @@ export function createOceanField({ roots, onActivity = () => {} }) {
   let lastScrollAt = performance.now();
   let pointer = null;
   let activityAt = 0;
+  let clickFlow = null;
 
   function splitPhrases(text) {
     if (!text.trim()) return [text];
@@ -228,6 +234,40 @@ export function createOceanField({ roots, onActivity = () => {} }) {
     }
   }
 
+  function applyClickFlow(deltaTime, now) {
+    if (!clickFlow) return;
+    const elapsed = now - clickFlow.startedAt;
+    if (elapsed < 0 || elapsed >= CLICK_FLOW_DURATION) {
+      clickFlow = null;
+      return;
+    }
+
+    const progress = elapsed / CLICK_FLOW_DURATION;
+    const strength = CLICK_FLOW_ACCELERATION * (1 - progress) * deltaTime;
+    // A radius of one quarter of the short edge makes the affected diameter
+    // half the viewport. The Gaussian is nearly exhausted at that boundary.
+    const radius = Math.min(width, height) * CLICK_FLOW_RADIUS_RATIO;
+    const sigma = radius * 0.45;
+
+    for (let row = 1; row < rows - 1; row += 1) {
+      for (let column = 1; column < cols - 1; column += 1) {
+        const x = (column - 1) * CELL_SIZE;
+        const y = (row - 1) * CELL_SIZE;
+        const dx = clickFlow.x - x;
+        const dy = clickFlow.y - y;
+        const distance = Math.hypot(dx, dy);
+        if (distance < 1 || distance > radius) continue;
+
+        const gaussian = Math.exp(-(distance * distance) / (2 * sigma * sigma));
+        const index = row * cols + column;
+        const velocityX = fieldX[index] + dx / distance * strength * gaussian;
+        const velocityY = fieldY[index] + dy / distance * strength * gaussian;
+        fieldX[index] = Math.max(-CLICK_FLOW_MAX_VELOCITY, Math.min(CLICK_FLOW_MAX_VELOCITY, velocityX));
+        fieldY[index] = Math.max(-CLICK_FLOW_MAX_VELOCITY, Math.min(CLICK_FLOW_MAX_VELOCITY, velocityY));
+      }
+    }
+  }
+
   function updateParticles(deltaTime, now) {
     let activeParticles = 0;
     let movedParticles = 0;
@@ -250,7 +290,7 @@ export function createOceanField({ roots, onActivity = () => {} }) {
         const ambient = Math.sin(now * 0.00022 + particle.phase + anchorY * 0.004);
         const spring = particle.detached ? 0 : 10.5 / particle.mass;
         const damping = Math.exp(-(particle.detached ? 2.8 : 4.4) * deltaTime);
-        const fluidInfluence = particle.detached ? 0.12 : 1;
+        const fluidInfluence = particle.detached ? 0.5 : 1;
         particle.vx += (fluidX * fluidInfluence + ambient * 3.2 - particle.x * spring) * deltaTime;
         particle.vy += (fluidY * fluidInfluence + Math.cos(particle.phase + now * 0.00018) * 1.2 - particle.y * spring) * deltaTime;
         particle.vx *= damping;
@@ -288,6 +328,7 @@ export function createOceanField({ roots, onActivity = () => {} }) {
     lastFrame = now;
     if (!paused) {
       stepField(deltaTime);
+      applyClickFlow(deltaTime, now);
       updateParticles(deltaTime, now);
     }
   }
@@ -317,8 +358,12 @@ export function createOceanField({ roots, onActivity = () => {} }) {
   }
 
   function onPointerDown(event) {
-    const direction = event.clientX < width / 2 ? -1 : 1;
-    splat(event.clientX, event.clientY, direction * 160, 48, 1.6, POINTER_MAX_FIELD_VELOCITY);
+    if (paused || !event.isPrimary || event.target.closest?.(INTERACTIVE_SELECTOR)) return;
+    clickFlow = {
+      x: event.clientX,
+      y: event.clientY,
+      startedAt: performance.now(),
+    };
   }
 
   function onScroll() {
@@ -356,6 +401,7 @@ export function createOceanField({ roots, onActivity = () => {} }) {
     paused = Boolean(nextPaused || reducedMotion);
     document.documentElement.classList.toggle("motion-paused", paused);
     if (paused) {
+      clickFlow = null;
       fieldX?.fill(0);
       fieldY?.fill(0);
       resetParticles();
