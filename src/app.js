@@ -2,6 +2,7 @@ import "./styles.css";
 import bookHtml from "./book.html?raw";
 import { book } from "./content.js";
 import { createOceanField } from "./effects.js";
+import { createFluidDistortion } from "./distortion.js";
 
 const app = document.querySelector("#app");
 const motionButton = document.querySelector("#motion-toggle");
@@ -101,11 +102,19 @@ function scheduleRubyAlignment() {
 }
 
 const ocean = createOceanField({
-  roots: document.querySelectorAll("[data-fluid-text]"),
+  roots: [...document.querySelectorAll("[data-fluid-text]")]
+    .filter((root) => !root.closest(".opening")),
   onActivity({ moved, active }) {
     const meter = document.querySelector("#active-segments");
     if (meter) meter.textContent = `${moved} / ${active}`;
   },
+});
+
+const distortion = createFluidDistortion({
+  field: ocean,
+  header: document.querySelector(".reader-bar"),
+  hero: document.querySelector(".opening"),
+  footer: document.querySelector(".colophon"),
 });
 
 let progressFrame = 0;
@@ -116,6 +125,7 @@ function updateReadingPosition() {
   const percent = Math.round(progress * 100);
   percentLabel.textContent = `${percent}%`;
   progressFill.style.transform = `scaleX(${progress})`;
+  distortion.invalidate("header");
 }
 
 addEventListener("scroll", () => {
@@ -128,6 +138,7 @@ motionButton.addEventListener("click", () => {
   const paused = ocean.togglePaused();
   motionButton.setAttribute("aria-pressed", String(paused));
   motionLabel.textContent = paused ? "浮動を起こす" : "浮動を止める";
+  distortion.invalidate("header");
 });
 
 if (reducedMotion) {
@@ -139,5 +150,6 @@ alignRubyAnnotations();
 document.fonts?.ready.then(() => {
   alignRubyAnnotations();
   ocean.measure();
+  distortion.invalidate();
 });
 updateReadingPosition();

@@ -36,6 +36,7 @@ export function createOceanField({ roots, onActivity = () => {} }) {
   let lastScrollAt = performance.now();
   let pointer = null;
   let activityAt = 0;
+  let fieldVersion = 0;
 
   function splitPhrases(text) {
     if (!text.trim()) return [text];
@@ -226,6 +227,7 @@ export function createOceanField({ roots, onActivity = () => {} }) {
         fieldY[index] = sample(nextY, backX, backY) * decay;
       }
     }
+    fieldVersion += 1;
   }
 
   function updateParticles(deltaTime, now) {
@@ -390,6 +392,18 @@ export function createOceanField({ roots, onActivity = () => {} }) {
     measure,
     setPaused,
     togglePaused,
+    getFieldSnapshot() {
+      return {
+        x: fieldX,
+        y: fieldY,
+        cols,
+        rows,
+        cellSize: CELL_SIZE,
+        maxVelocity: DEFAULT_MAX_FIELD_VELOCITY,
+        version: fieldVersion,
+        paused,
+      };
+    },
     destroy() {
       cancelAnimationFrame(animationFrame);
       observer.disconnect();

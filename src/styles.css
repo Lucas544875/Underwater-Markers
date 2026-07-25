@@ -69,6 +69,52 @@ button { font: inherit; }
   font-family: var(--sans);
 }
 
+.fluid-distortion-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.reader-bar > :not(.fluid-distortion-canvas),
+.colophon > :not(.fluid-distortion-canvas) {
+  position: relative;
+  z-index: 1;
+}
+
+.opening > :not(.fluid-distortion-canvas) {
+  z-index: 1;
+}
+
+.reader-bar.fluid-distortion-ready {
+  background: transparent;
+  border-bottom-color: transparent;
+  backdrop-filter: none;
+}
+
+.reader-bar.fluid-distortion-ready :is(
+  .reader-brand,
+  .reader-brand-mark,
+  .reader-position,
+  .motion-toggle
+) {
+  color: transparent;
+}
+
+.reader-bar.fluid-distortion-ready .reader-brand-mark,
+.reader-bar.fluid-distortion-ready .reader-progress,
+.reader-bar.fluid-distortion-ready .reader-progress i {
+  background: transparent;
+}
+
+.reader-bar.fluid-distortion-ready :is(.motion-toggle, .reader-brand):focus-visible,
+.opening.fluid-distortion-ready .begin-reading:focus-visible,
+.colophon.fluid-distortion-ready a:focus-visible {
+  outline-color: var(--paper-light);
+}
+
 .reader-brand {
   width: max-content;
   display: flex;
@@ -160,6 +206,37 @@ button { font: inherit; }
   background:
     linear-gradient(180deg, rgba(6, 55, 76, 0.08), rgba(6, 55, 76, 0.34)),
     var(--blue);
+}
+
+.opening.fluid-distortion-ready {
+  color: transparent;
+  background: transparent;
+}
+
+.opening.fluid-distortion-ready::before,
+.opening.fluid-distortion-ready::after {
+  opacity: 0;
+}
+
+.opening.fluid-distortion-ready .opening-water,
+.opening.fluid-distortion-ready .opening-water i {
+  background: transparent;
+}
+
+.opening.fluid-distortion-ready :is(
+  .opening-original,
+  .opening-byline small,
+  .begin-reading
+) {
+  color: transparent;
+}
+
+.opening.fluid-distortion-ready h1 {
+  text-shadow: none;
+}
+
+.opening.fluid-distortion-ready .begin-reading {
+  border-color: transparent;
 }
 
 .opening::before {
@@ -418,6 +495,30 @@ ruby > rp { display: none; }
   background:
     repeating-linear-gradient(174deg, transparent 0 55px, rgba(245, 240, 228, 0.05) 56px 57px),
     var(--blue-dark);
+}
+
+.colophon.fluid-distortion-ready {
+  color: transparent;
+  background: transparent;
+}
+
+.colophon.fluid-distortion-ready .colophon-number {
+  color: transparent;
+  -webkit-text-stroke-color: transparent;
+}
+
+.colophon.fluid-distortion-ready :is(.colophon-kicker, a) {
+  color: transparent;
+}
+
+.colophon.fluid-distortion-ready .colophon-links {
+  background: transparent;
+  border-color: transparent;
+}
+
+.colophon.fluid-distortion-ready .colophon-links a,
+.colophon.fluid-distortion-ready .colophon-links a:hover {
+  background: transparent;
 }
 
 .colophon-number {
