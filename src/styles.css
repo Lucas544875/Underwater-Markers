@@ -370,8 +370,31 @@ button { font: inherit; }
   letter-spacing: 0.1em;
 }
 
-ruby { ruby-position: over; }
-rt { color: var(--ink-soft); font-size: max(0.52em, 10px); letter-spacing: 0; }
+ruby {
+  position: relative;
+  display: inline-block;
+  vertical-align: baseline;
+  ruby-position: over;
+  ruby-align: center;
+}
+
+ruby > rb { display: inline; }
+
+ruby > rt {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% - 0.5em);
+  width: max-content;
+  color: var(--ink-soft);
+  font-size: max(0.52em, 10px);
+  line-height: 1;
+  letter-spacing: 0;
+  text-align: center;
+  white-space: nowrap;
+  transform: translateX(calc(-50% + var(--ruby-shift, 0px)));
+}
+
+ruby > rp { display: none; }
 
 .fluid-segment {
   display: inline-block;

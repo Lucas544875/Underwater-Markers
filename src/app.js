@@ -70,6 +70,36 @@ app.innerHTML = `
   </footer>
 `;
 
+const rubyAnnotations = [...document.querySelectorAll("ruby > rt")];
+let rubyLayoutFrame = 0;
+
+function alignRubyAnnotations() {
+  const edgePadding = 8;
+
+  for (const annotation of rubyAnnotations) {
+    annotation.style.removeProperty("--ruby-shift");
+  }
+
+  for (const annotation of rubyAnnotations) {
+    const rect = annotation.getBoundingClientRect();
+    let shift = 0;
+    if (rect.left < edgePadding) {
+      shift = edgePadding - rect.left;
+    } else if (rect.right > innerWidth - edgePadding) {
+      shift = innerWidth - edgePadding - rect.right;
+    }
+    if (shift) annotation.style.setProperty("--ruby-shift", `${shift}px`);
+  }
+}
+
+function scheduleRubyAlignment() {
+  if (rubyLayoutFrame) cancelAnimationFrame(rubyLayoutFrame);
+  rubyLayoutFrame = requestAnimationFrame(() => {
+    rubyLayoutFrame = 0;
+    alignRubyAnnotations();
+  });
+}
+
 const ocean = createOceanField({
   roots: document.querySelectorAll("[data-fluid-text]"),
   onActivity({ moved, active }) {
@@ -92,6 +122,8 @@ addEventListener("scroll", () => {
   if (!progressFrame) progressFrame = requestAnimationFrame(updateReadingPosition);
 }, { passive: true });
 
+addEventListener("resize", scheduleRubyAlignment, { passive: true });
+
 motionButton.addEventListener("click", () => {
   const paused = ocean.togglePaused();
   motionButton.setAttribute("aria-pressed", String(paused));
@@ -103,5 +135,9 @@ if (reducedMotion) {
   motionLabel.textContent = "浮動は停止中";
 }
 
-document.fonts?.ready.then(() => ocean.measure());
+alignRubyAnnotations();
+document.fonts?.ready.then(() => {
+  alignRubyAnnotations();
+  ocean.measure();
+});
 updateReadingPosition();
