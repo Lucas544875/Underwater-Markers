@@ -147,15 +147,6 @@ button { font: inherit; }
   outline-offset: 5px;
 }
 
-.motion-dot {
-  width: 8px;
-  height: 8px;
-  border: 1px solid currentColor;
-  border-radius: 50%;
-  box-shadow: inset 0 0 0 2px var(--blue-dark);
-  background: var(--paper-light);
-}
-
 .motion-toggle[aria-pressed="true"] .motion-dot { background: transparent; }
 
 #app { position: relative; z-index: 2; }
@@ -236,7 +227,7 @@ button { font: inherit; }
   margin: 0;
   display: flex;
   justify-content: space-between;
-  font: 10px/1 var(--sans);
+  font: 10px var(--sans);
   letter-spacing: 0.22em;
 }
 
@@ -299,7 +290,7 @@ button { font: inherit; }
   border-top: 1px solid rgba(245, 240, 228, 0.65);
   border-bottom: 1px solid rgba(245, 240, 228, 0.65);
   text-decoration: none;
-  font: 10px/1 var(--sans);
+  font: 14px/1 var(--sans);
   letter-spacing: 0.16em;
 }
 

@@ -95,12 +95,12 @@ addEventListener("scroll", () => {
 motionButton.addEventListener("click", () => {
   const paused = ocean.togglePaused();
   motionButton.setAttribute("aria-pressed", String(paused));
-  motionLabel.textContent = paused ? "潮流を起こす" : "潮流を止める";
+  motionLabel.textContent = paused ? "浮動を起こす" : "浮動を止める";
 });
 
 if (reducedMotion) {
   motionButton.setAttribute("aria-pressed", "true");
-  motionLabel.textContent = "潮流は停止中";
+  motionLabel.textContent = "浮動は停止中";
 }
 
 document.fonts?.ready.then(() => ocean.measure());
