@@ -45,7 +45,10 @@ app.innerHTML = `
   </section>
 
   <footer class="colophon" id="credit" aria-labelledby="credit-title">
-    <div class="colophon-number" aria-hidden="true">85</div>
+    <div class="colophon-emblem" aria-hidden="true">
+      <span class="colophon-moon"></span>
+      <span class="colophon-sun"></span>
+    </div>
     <div class="colophon-main">
       <p class="colophon-kicker">TEXT &amp; LICENSE</p>
       <h2 id="credit-title">作品と翻訳について</h2>
