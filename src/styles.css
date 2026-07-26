@@ -493,14 +493,15 @@ ruby > rp { display: none; }
 
 @media (max-width: 760px) {
   .reader-bar {
-    grid-template-columns: auto 1fr auto;
-    gap: 14px;
+    grid-template-columns: auto auto minmax(36px, 1fr) auto;
+    gap: 10px;
     height: 56px;
     padding-inline: 14px;
   }
-  .reader-brand > span:last-child, .reader-progress { display: none; }
+  .reader-brand > span:last-child { display: none; }
   .reader-brand-mark { width: 28px; height: 28px; }
-  .reader-position { justify-content: center; }
+  .reader-position { min-width: 0; gap: 0; justify-content: center; }
+  .reader-progress { display: block; }
   .motion-toggle { min-width: 94px; justify-content: flex-end; }
   .opening { padding-top: 56px; }
   .opening-inner { width: calc(100% - 34px); min-height: calc(100svh - 56px); padding-top: 28px; }
